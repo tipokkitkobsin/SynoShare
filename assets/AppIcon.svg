@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- SynoShare app icon: a folder receiving a download, ringed by a resume arc. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2F7CF6"/>
+      <stop offset="1" stop-color="#1446B8"/>
+    </linearGradient>
+    <linearGradient id="folder" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#DCE8FF"/>
+    </linearGradient>
+  </defs>
+
+  <!-- macOS icon grid: 824 px rounded square centred on the 1024 canvas -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <rect x="100" y="100" width="824" height="412" rx="185" fill="#FFFFFF" opacity="0.06"/>
+
+  <!-- resume arc: an almost-closed ring ending in an arrowhead -->
+  <path d="M 512 196 A 316 316 0 1 1 288 289" fill="none" stroke="#7FD3FF"
+        stroke-width="34" stroke-linecap="round" opacity="0.9"/>
+  <path d="M 246 262 L 300 252 L 290 318 Z" fill="#7FD3FF" opacity="0.9"/>
+
+  <!-- folder with a soft shadow -->
+  <path d="M 300 434 Q 300 406 328 406 L 440 406 L 476 442 L 696 442 Q 724 442 724 470
+           L 724 690 Q 724 718 696 718 L 328 718 Q 300 718 300 690 Z" fill="#0A2466" opacity="0.25"/>
+  <path d="M 300 420 Q 300 392 328 392 L 440 392 L 476 428 L 696 428 Q 724 428 724 456
+           L 724 676 Q 724 704 696 704 L 328 704 Q 300 704 300 676 Z" fill="url(#folder)"/>
+
+  <!-- download arrow dropping into the folder -->
+  <rect x="482" y="300" width="60" height="300" rx="30" fill="#FFFFFF"/>
+  <rect x="496" y="300" width="32" height="290" rx="16" fill="#1446B8"/>
+  <path d="M 420 500 L 512 600 L 604 500" fill="none" stroke="#FFFFFF" stroke-width="64"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 432 512 L 512 598 L 592 512" fill="none" stroke="#1446B8" stroke-width="32"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
