@@ -214,6 +214,18 @@ final class DownloadViewModelTests: XCTestCase {
         XCTAssertEqual(model.listing, ListingProgress(folders: 4, files: 40))
     }
 
+    func testTimeLeftShownOnlyWhileDownloading() {
+        let model = makeModel()
+        model.handle(.progress(ProgressSnapshot(totalBytes: 1_000, completedBytes: 250, bytesPerSecond: 50,
+                                                active: [], concurrency: 3)))
+
+        model.handle(.phase(.downloading))
+        XCTAssertEqual(model.timeLeft, "15s")
+
+        model.handle(.phase(.paused([.user])))
+        XCTAssertEqual(model.timeLeft, "—", "a paused download has no meaningful ETA")
+    }
+
     func testVolumeLossShowsDriveUnpluggedNextToDestination() {
         let model = makeModel()
 

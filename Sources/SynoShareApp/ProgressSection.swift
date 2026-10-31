@@ -27,7 +27,7 @@ struct ProgressSection: View {
                     stat("Speed", Formatting.speed(model.progress?.bytesPerSecond ?? 0))
                 }
                 GridRow {
-                    stat("Time left", Formatting.eta(model.progress?.eta))
+                    stat("Time left", model.timeLeft)
                     stat("Parallel files", model.progress.map { "\($0.concurrency)" } ?? "—")
                 }
                 if let listing = model.listing, model.operation != nil {

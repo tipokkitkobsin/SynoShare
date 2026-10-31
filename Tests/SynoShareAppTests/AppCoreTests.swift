@@ -49,6 +49,27 @@ final class FormattingTests: XCTestCase {
         XCTAssertEqual(Formatting.eta(12), "12s")
         XCTAssertEqual(Formatting.eta(249), "4m 09s")
         XCTAssertEqual(Formatting.eta(3_900), "1h 05m")
+        XCTAssertEqual(Formatting.eta(86_399), "23h 59m")
+    }
+
+    func testETAOverADayUsesDaysAndMonths() {
+        XCTAssertEqual(Formatting.eta(86_400), "1d 00h")
+        XCTAssertEqual(Formatting.eta(180 * 3_600), "7d 12h")
+        XCTAssertEqual(Formatting.eta(35 * 86_400 + 7_200), "1mo 05d")
+        XCTAssertEqual(Formatting.eta(400 * 86_400), "> 1 year")
+    }
+
+    func testETANeverTrapsOnHugeOrInvalidValues() {
+        // Crash 2026-10-31: paused download, speed decayed toward 0, Int(seconds) overflowed.
+        XCTAssertEqual(Formatting.eta(1e30), "> 1 year")
+        XCTAssertEqual(Formatting.eta(.greatestFiniteMagnitude), "> 1 year")
+        XCTAssertEqual(Formatting.eta(.infinity), "—")
+        XCTAssertEqual(Formatting.eta(.nan), "—")
+        XCTAssertEqual(Formatting.eta(-5), "—")
+    }
+
+    func testSpeedBelowOneBytePerSecondIsUnknown() {
+        XCTAssertEqual(Formatting.speed(1e-9), "—")
     }
 
     func testSpeedAndPercent() {

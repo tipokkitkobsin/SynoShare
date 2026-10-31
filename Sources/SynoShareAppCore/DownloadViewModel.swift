@@ -105,6 +105,12 @@ public final class DownloadViewModel {
     public var bytesDone: Int64 { progress?.completedBytes ?? report?.completedBytes ?? 0 }
     public var bytesTotal: Int64 { progress?.totalBytes ?? report?.expectedBytes ?? 0 }
 
+    /// ETA text; "—" unless actively downloading (a paused speed decays toward zero).
+    public var timeLeft: String {
+        guard case .downloading = phase else { return "—" }
+        return Formatting.eta(progress?.eta)
+    }
+
     public var fractionCompleted: Double {
         if let progress { return progress.fractionCompleted }
         guard bytesTotal > 0 else { return 0 }
