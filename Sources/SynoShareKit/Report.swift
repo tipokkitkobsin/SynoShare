@@ -77,27 +77,31 @@ public struct VerificationResult: Sendable, Equatable {
     public let problems: [FileIssue]
 }
 
-/// Re-checks every completed file: exists, is a regular file, size matches. No re-download.
+/// Re-checks every completed file: exists, is a regular file, size matches.
+/// Missing files go back to `pending`; wrong sizes become `conflict` (never overwritten).
 public enum Verifier {
     public static func verify(store: StateStore, now: Date = Date()) throws -> VerificationResult {
         let complete = try store.files(status: .done, .adopted)
         var problems: [FileIssue] = []
         for file in complete {
             let url = PathMapper.localURL(destination: store.destination, relative: file.localPath)
-            let message: String?
+            let localSize: Int64?
             do {
-                switch try SafeFS.regularFileSize(url) {
-                case nil: message = "missing"
-                case let size? where size != file.size: message = "size \(size), expected \(file.size)"
-                default: message = nil
-                }
+                localSize = try SafeFS.regularFileSize(url)
             } catch {
-                message = error.localizedDescription
+                try store.markVerifyProblem(file.path, message: error.localizedDescription)
+                problems.append(FileIssue(relPath: file.relPath, message: error.localizedDescription))
+                continue
             }
-            if let message {
-                try store.markVerifyProblem(file.path, message: message)
+            switch localSize {
+            case nil:
+                try store.requeueMissing(file.path)
+                problems.append(FileIssue(relPath: file.relPath, message: "missing"))
+            case let size? where size != file.size:
+                let message = "size \(size), expected \(file.size)"
+                try store.markVerifyConflict(file.path, message: message)
                 problems.append(FileIssue(relPath: file.relPath, message: message))
-            } else {
+            default:
                 try store.markVerified(file.path, at: now)
             }
         }

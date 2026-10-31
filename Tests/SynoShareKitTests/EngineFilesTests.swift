@@ -195,6 +195,34 @@ final class EngineFilesTests: EngineTestCase {
         XCTAssertNotNil(try store().file("/Share/a.txt")?.verifiedAt)
     }
 
+    func testVerifyRequeuesMissingFileSoTheNextRunDownloadsIt() async throws {
+        nas.addFile("/Share/a.txt", Data("aaa".utf8))
+        nas.addFile("/Share/b.txt", Data("bbb".utf8))
+        _ = try await makeEngine().run()
+        try FileManager.default.removeItem(at: local("b.txt"))
+
+        _ = try DownloadEngine.verify(destination: destination)
+        XCTAssertEqual(try store().file("/Share/b.txt")?.status, .pending)
+
+        _ = try await makeEngine().run()
+        XCTAssertEqual(try Data(contentsOf: local("b.txt")), Data("bbb".utf8))
+        XCTAssertEqual(try store().file("/Share/b.txt")?.status, .done)
+        XCTAssertEqual(try DownloadEngine.report(destination: destination).sizeMismatches, 0)
+    }
+
+    func testVerifyFlagsWrongSizeAsConflictNeverOverwrites() async throws {
+        nas.addFile("/Share/a.txt", Data("aaa".utf8))
+        _ = try await makeEngine().run()
+        try Data("corrupt!".utf8).write(to: local("a.txt"))
+
+        let result = try DownloadEngine.verify(destination: destination)
+        let record = try store().file("/Share/a.txt")
+
+        XCTAssertEqual(result.problems.first?.message, "size 8, expected 3")
+        XCTAssertEqual(record?.status, .conflict, "user picks Replace / Keep both")
+        XCTAssertEqual(try Data(contentsOf: local("a.txt")), Data("corrupt!".utf8))
+    }
+
     func testOfflineReportWithoutStateFails() {
         XCTAssertThrowsError(try DownloadEngine.report(destination: destination))
     }

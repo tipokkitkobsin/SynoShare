@@ -125,6 +125,22 @@ extension StateStore {
                      [.text(Self.verifyPrefix + message), .text(path)])
     }
 
+    /// A completed file is gone from disk: queue it for a fresh download.
+    func requeueMissing(_ path: String) throws {
+        try db.query("""
+            UPDATE file SET status = 'pending', bytes_done = 0, attempts = 0, verified_at = NULL,
+                last_error = ? WHERE path = ?
+            """, [.text(Self.verifyPrefix + "missing"), .text(path)])
+    }
+
+    /// A completed file has the wrong size on disk: never overwrite, let the user resolve it.
+    func markVerifyConflict(_ path: String, message: String) throws {
+        try db.query("""
+            UPDATE file SET status = 'conflict', note = ?, replace_ok = 0, verified_at = NULL,
+                last_error = ? WHERE path = ?
+            """, [.text(message), .text(Self.verifyPrefix + message), .text(path)])
+    }
+
     static let verifyPrefix = "verify: "
 
     // MARK: - Helpers
