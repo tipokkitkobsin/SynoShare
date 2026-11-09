@@ -13,6 +13,9 @@ public enum EnginePhase: Sendable, Equatable {
     case listing
     case checkingSpace
     case downloading
+    /// Pause requested; in-flight transfers are still being cancelled and flushed.
+    case pausing(Set<PauseReason>)
+    /// Nothing is transferring and state is on disk.
     case paused(Set<PauseReason>)
     case stopping
     case finished

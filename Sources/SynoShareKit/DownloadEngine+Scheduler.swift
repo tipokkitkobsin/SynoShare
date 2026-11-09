@@ -21,6 +21,7 @@ extension DownloadEngine {
         while !isStopping {
             if !volumeAvailable() { pause(.volumeUnavailable) }
             if !pauseReasons.isEmpty {
+                setPhase(.paused(pauseReasons))
                 await waitUntilResumed()
                 continue
             }

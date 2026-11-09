@@ -193,7 +193,8 @@ public actor DownloadEngine {
         pauseReasons.insert(reason)
         note("paused: \(reason.rawValue)")
         passTask?.cancel()
-        setPhase(.paused(pauseReasons))
+        // With a pass running, downloadLoop reports .paused once that pass has unwound.
+        setPhase(passTask == nil ? .paused(pauseReasons) : .pausing(pauseReasons))
     }
 
     func waitUntilResumed() async {

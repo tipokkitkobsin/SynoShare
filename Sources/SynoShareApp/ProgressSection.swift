@@ -10,7 +10,7 @@ struct ProgressSection: View {
         Section("Progress") {
             HStack {
                 Text(model.phaseDescription).font(.headline)
-                if model.isBusy { ProgressView().controlSize(.small) }
+                if model.showsActivity { ProgressView().controlSize(.small) }
                 Spacer()
                 Text(Formatting.percent(model.fractionCompleted)).monospacedDigit()
             }
@@ -24,7 +24,7 @@ struct ProgressSection: View {
                 GridRow {
                     stat("Downloaded", model.bytesTotal > 0
                          ? "\(Formatting.bytes(model.bytesDone)) of \(Formatting.bytes(model.bytesTotal))" : "—")
-                    stat("Speed", Formatting.speed(model.progress?.bytesPerSecond ?? 0))
+                    stat("Speed", model.speedText)
                 }
                 GridRow {
                     stat("Time left", model.timeLeft)

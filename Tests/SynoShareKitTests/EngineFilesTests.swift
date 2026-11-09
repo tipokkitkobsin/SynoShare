@@ -178,6 +178,24 @@ final class EngineFilesTests: EngineTestCase {
         XCTAssertEqual(report.count(.done), 1)
     }
 
+    func testUserPauseReportsPausingUntilTransfersHaveStopped() async throws {
+        nas.addFile("/Share/f.bin", Self.bytes(5000))
+        nas.script("/Share/f.bin", [.timeout])
+        let engine = try makeEngine { $0.retryPolicy = RetryPolicy(baseDelay: 0.3, maxDelay: 0.3, maxAttempts: 8) }
+        let run = Task { try await engine.run() }
+        var phases: [EnginePhase] = []
+        for await event in engine.events {
+            if case .fileRetrying = event { await engine.pause() }
+            if case .phase(let phase) = event { phases.append(phase) }
+            if case .phase(.paused) = event { break }
+        }
+        await engine.resume()
+        _ = try await run.value
+
+        XCTAssertEqual(phases.suffix(2), [.pausing([.user]), .paused([.user])],
+                       "Paused (safe to quit) only after the in-flight pass has unwound")
+    }
+
     func testOfflineVerifyAndStatus() async throws {
         nas.addFile("/Share/a.txt", Data("aaa".utf8))
         nas.addFile("/Share/b.txt", Data("bbb".utf8))

@@ -85,14 +85,35 @@ public final class DownloadViewModel {
     public var isBusy: Bool { operation != nil || isVerifying }
     public var isRunning: Bool { operation != nil }
 
-    public var isUserPaused: Bool {
-        if case .paused(let reasons) = phase { return reasons.contains(.user) }
-        return false
+    /// Pause reasons while pausing or paused; empty otherwise.
+    private var pauseReasons: Set<PauseReason> {
+        switch phase {
+        case .pausing(let reasons), .paused(let reasons): return reasons
+        default: return []
+        }
     }
 
-    public var isDriveUnavailable: Bool {
-        if case .paused(let reasons) = phase { return reasons.contains(.volumeUnavailable) }
-        return false
+    public var isUserPaused: Bool { pauseReasons.contains(.user) }
+    public var isDriveUnavailable: Bool { pauseReasons.contains(.volumeUnavailable) }
+
+    /// Spinner: work is happening, which excludes a settled pause.
+    public var showsActivity: Bool {
+        if case .paused = phase { return false }
+        return isBusy
+    }
+
+    /// Ask before quitting only while data is moving; quitting is a graceful stop in every case.
+    public var needsQuitConfirmation: Bool {
+        switch phase {
+        case .connecting, .listing, .checkingSpace, .downloading: return true
+        default: return false
+        }
+    }
+
+    /// Speed text; "—" unless actively downloading, so it does not decay toward zero after Pause.
+    public var speedText: String {
+        guard case .downloading = phase else { return "—" }
+        return Formatting.speed(progress?.bytesPerSecond ?? 0)
     }
 
     public var failedFiles: [FileIssue] { report?.failed ?? [] }
@@ -130,8 +151,9 @@ public final class DownloadViewModel {
         case .listing: return "Listing files…"
         case .checkingSpace: return "Checking free space…"
         case .downloading: return "Downloading"
+        case .pausing: return "Pausing…"
         case .paused(let reasons):
-            return reasons.contains(.volumeUnavailable) ? "Paused — drive unavailable" : "Paused"
+            return reasons.contains(.volumeUnavailable) ? "Paused — drive unavailable" : "Paused — safe to quit"
         case .stopping: return "Stopping…"
         case .finished: return "Finished"
         }

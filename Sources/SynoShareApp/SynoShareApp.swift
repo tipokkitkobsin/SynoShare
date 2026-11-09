@@ -31,7 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        if model.isRunning, !confirmQuitWhileDownloading() { return .terminateCancel }
+        if model.needsQuitConfirmation, !confirmQuitWhileDownloading() { return .terminateCancel }
         Task { @MainActor in
             await model.shutdown()
             sender.reply(toApplicationShouldTerminate: true)

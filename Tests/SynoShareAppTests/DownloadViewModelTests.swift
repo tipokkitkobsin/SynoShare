@@ -226,6 +226,42 @@ final class DownloadViewModelTests: XCTestCase {
         XCTAssertEqual(model.timeLeft, "—", "a paused download has no meaningful ETA")
     }
 
+    func testSpeedShownOnlyWhileDownloading() {
+        let model = makeModel()
+        model.handle(.progress(ProgressSnapshot(totalBytes: 1_000, completedBytes: 250, bytesPerSecond: 2_048,
+                                                active: [], concurrency: 3)))
+
+        model.handle(.phase(.downloading))
+        XCTAssertTrue(model.speedText.hasSuffix("/s"))
+
+        model.handle(.phase(.paused([.user])))
+        XCTAssertEqual(model.speedText, "—", "no decaying number after Pause")
+    }
+
+    func testPauseStatesTellWhenItIsSafeToQuit() async {
+        await recorder.engine.configure(holdRun: true)
+        let model = makeModel()
+        model.startDownload()
+        let started = await eventually { await self.recorder.engine.calls.contains("run") }
+        XCTAssertTrue(started)
+
+        model.handle(.phase(.downloading))
+        XCTAssertTrue(model.needsQuitConfirmation)
+        XCTAssertTrue(model.showsActivity)
+
+        model.handle(.phase(.pausing([.user])))
+        XCTAssertEqual(model.phaseDescription, "Pausing…")
+        XCTAssertTrue(model.isUserPaused, "button already offers Resume")
+        XCTAssertTrue(model.showsActivity)
+        XCTAssertFalse(model.needsQuitConfirmation, "quitting stops gracefully anyway")
+
+        model.handle(.phase(.paused([.user])))
+        XCTAssertEqual(model.phaseDescription, "Paused — safe to quit")
+        XCTAssertFalse(model.showsActivity)
+        XCTAssertFalse(model.needsQuitConfirmation)
+        await model.shutdown()
+    }
+
     func testVolumeLossShowsDriveUnpluggedNextToDestination() {
         let model = makeModel()
 

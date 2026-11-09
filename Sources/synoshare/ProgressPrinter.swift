@@ -40,6 +40,7 @@ struct ProgressPrinter {
         case .listing: return "listing"
         case .checkingSpace: return "checking free space"
         case .downloading: return "downloading"
+        case .pausing(let reasons): return "pausing (\(reasons.map(\.rawValue).sorted().joined(separator: ", ")))"
         case .paused(let reasons): return "paused (\(reasons.map(\.rawValue).sorted().joined(separator: ", ")))"
         case .stopping: return "stopping"
         case .finished: return "finished"
