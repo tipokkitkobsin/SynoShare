@@ -121,6 +121,20 @@ final class EngineDownloadTests: EngineTestCase {
         XCTAssertEqual(nas.logins, 2)
     }
 
+    func testIPChangeErrorLogsInAgainInsteadOfFailingEveryFile() async throws {
+        // Real log 2026-11-04..09: after a network drop every request got error 150
+        // ("source IP does not match login IP") and 2,343 files failed without a re-login.
+        let data = Self.bytes(3000)
+        nas.addFile("/Share/f.bin", data)
+        nas.script("/Share/f.bin", [.ipChanged])
+        let engine = try makeEngine()
+
+        _ = try await engine.run()
+
+        XCTAssertEqual(contents("f.bin"), data)
+        XCTAssertEqual(nas.logins, 2)
+    }
+
     func testSessionExpiryDuringListingLogsInAgain() async throws {
         nas.addFile("/Share/x/f.txt", Data("x".utf8))
         let engine = try makeEngine()

@@ -35,7 +35,9 @@ enum FailureKind: Equatable {
 }
 
 enum FailureClassifier {
-    static let sessionErrorCodes: Set<Int> = [105, 106, 119]
+    /// 105/106/119: session expired or missing. 150: the client's IP changed since login
+    /// (network switch or reconnect); the NAS refuses the old session until a new login.
+    static let sessionErrorCodes: Set<Int> = [105, 106, 119, 150]
 
     static func classify(_ error: Error) -> FailureKind {
         if error is CancellationError { return .cancelled }

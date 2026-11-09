@@ -8,6 +8,8 @@ enum Behavior: Equatable {
     case ignoreRange
     case rangeNotSatisfiable
     case sessionExpired
+    /// The client's public IP changed since login (error 150); the old session is unusable.
+    case ipChanged
     /// Send this many body bytes, then drop the connection.
     case dropAfter(Int)
 }
@@ -39,6 +41,8 @@ final class FakeNAS: @unchecked Sendable {
     private var extraEntries: [String: [[String: Any]]] = [:]
     private var behaviors: [String: [Behavior]] = [:]
     private var sessionValid = false
+    /// Error returned while the session is invalid: 119, or 150 after the client IP changed.
+    private var invalidSessionCode = 119
     private(set) var loginCount = 0
     private(set) var ranges: [String: [String?]] = [:]
     private(set) var listCount = 0
@@ -93,15 +97,16 @@ final class FakeNAS: @unchecked Sendable {
             guard Self.decode(params["password"]) as? String == password else { return .apiError(1001) }
             loginCount += 1
             sessionValid = true
+            invalidSessionCode = 119
             return .json(["success": true, "data": [:]])
         case "SYNO.Core.Sharing.Initdata":
             return .json(["success": true, "data": ["Private": ["filename": "Share"]]])
         case "SYNO.FolderSharing.List":
-            guard sessionValid else { return .apiError(119) }
+            guard sessionValid else { return .apiError(invalidSessionCode) }
             listCount += 1
             return list(folder: Self.decode(params["folder_path"]) as? String ?? "")
         case "SYNO.FolderSharing.Download":
-            guard sessionValid else { return .apiError(119) }
+            guard sessionValid else { return .apiError(invalidSessionCode) }
             let paths = Self.decode(params["path"]) as? [String] ?? []
             return download(paths.first ?? "", range: request.value(forHTTPHeaderField: "Range"))
         default:
@@ -136,6 +141,10 @@ final class FakeNAS: @unchecked Sendable {
         case .sessionExpired?:
             sessionValid = false
             return .apiError(106)
+        case .ipChanged?:
+            sessionValid = false
+            invalidSessionCode = 150
+            return .apiError(150)
         case .ignoreRange?: return Self.serve(file.data, range: nil, dropAfter: nil)
         case .dropAfter(let count)?: return Self.serve(file.data, range: range, dropAfter: count)
         case nil: return Self.serve(file.data, range: range, dropAfter: nil)
