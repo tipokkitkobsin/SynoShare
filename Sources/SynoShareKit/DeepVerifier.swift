@@ -56,6 +56,12 @@ public enum DeepVerifier {
         return summary(outcomes, skipped: complete.count - queue.count, cancelled: cancelled)
     }
 
+    /// Size and checksum check of one file (used after a repair). Returns the problem, or nil.
+    static func verifyFile(_ file: FileRecord, store: StateStore) throws -> FileIssue? {
+        guard case .problem(let issue) = try check(file, store: store, isCancelled: { false }) else { return nil }
+        return issue
+    }
+
     private static func check(_ file: FileRecord, store: StateStore, isCancelled: () -> Bool) throws -> Outcome {
         if let problem = try Verifier.checkSize(file, store: store) { return .problem(problem) }
         let url = PathMapper.localURL(destination: store.destination, relative: file.localPath)

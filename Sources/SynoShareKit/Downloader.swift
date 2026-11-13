@@ -10,6 +10,8 @@ struct DownloadJob: Sendable {
     let modified: Date?
     /// The user chose Replace for a conflict; otherwise an existing file is never overwritten.
     let replaceExisting: Bool
+    /// A manifest checksum the `.part` must match before it may replace anything.
+    var expectedHash: ExpectedHash? = nil
 
     var localURL: URL { PathMapper.localURL(destination: root, relative: localPath) }
 }
@@ -58,10 +60,23 @@ struct Downloader: Sendable {
         }
         let sha256 = writer.sha256Hex()
         try writer.finish()
+        try Self.checkExpected(job.expectedHash, part: part, sha256: sha256)
         if let modified = job.modified { try SafeFS.setModificationDate(modified, of: part) }
         try SafeFS.move(part, to: job.localURL, replacing: job.replaceExisting)
         SafeFS.syncDirectory(job.localURL.deletingLastPathComponent())
         return .downloaded(sha256: sha256)
+    }
+
+    /// Compares the finished `.part` with the manifest before the rename, so a bad
+    /// download never replaces the old file. A rejected `.part` is deleted.
+    static func checkExpected(_ expected: ExpectedHash?, part: URL, sha256: String) throws {
+        guard let expected else { return }
+        let actual = expected.algorithm == .sha256
+            ? sha256
+            : try FileHasher.digests(of: part, algorithms: [expected.algorithm])[expected.algorithm]
+        guard actual != expected.hex else { return }
+        try SafeFS.remove(part)
+        throw DownloadError.checksumMismatch(algorithm: expected.algorithm)
     }
 
     private func transfer(_ job: DownloadJob, writer: PartWriter, from offset: Int64) async throws {

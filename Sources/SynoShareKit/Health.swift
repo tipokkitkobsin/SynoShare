@@ -55,22 +55,31 @@ public struct FileEntry: Sendable, Equatable {
     }
 }
 
-/// Which files to list. Empty / nil criteria match everything.
+/// Which files to list. Empty health and a nil glob match everything.
 public struct FileFilter: Sendable, Equatable {
     public var health: Set<FileHealth>
+    /// Matched against `rel_path` (see `Glob`).
+    public var glob: String?
 
-    public init(health: Set<FileHealth> = []) {
+    public init(health: Set<FileHealth> = [], glob: String? = nil) {
         self.health = health
+        self.glob = glob
     }
 
-    public func matches(_ entry: FileEntry) -> Bool {
-        health.isEmpty || health.contains(entry.health)
+    /// A predicate for this filter; throws for a glob that cannot be compiled.
+    func matcher() throws -> (FileEntry) -> Bool {
+        let compiled = try glob.map(Glob.init)
+        let health = health
+        return { entry in
+            (health.isEmpty || health.contains(entry.health))
+                && (compiled?.matches(entry.record.relPath) ?? true)
+        }
     }
 }
 
 extension StateStore {
     /// Every tracked file with its health, filtered, ordered by remote path.
     public func fileEntries(matching filter: FileFilter = FileFilter()) throws -> [FileEntry] {
-        try files().map(FileEntry.init(record:)).filter(filter.matches)
+        try files().map(FileEntry.init(record:)).filter(try filter.matcher())
     }
 }

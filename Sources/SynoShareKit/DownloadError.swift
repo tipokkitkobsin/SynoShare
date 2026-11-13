@@ -11,6 +11,8 @@ public enum DownloadError: Error, LocalizedError, Equatable {
     case changedOnServer
     /// Network or server trouble worth retrying.
     case transient(String)
+    /// The downloaded bytes do not match the imported manifest.
+    case checksumMismatch(algorithm: HashAlgorithm)
 
     public var errorDescription: String? {
         switch self {
@@ -19,6 +21,8 @@ public enum DownloadError: Error, LocalizedError, Equatable {
         case .timedOut: return "Timed out."
         case .changedOnServer: return "File changed on the server since listing."
         case .transient(let detail): return detail
+        case .checksumMismatch(let algorithm):
+            return "Checksum mismatch (\(algorithm.rawValue)): the server's copy does not match the manifest."
         }
     }
 }
@@ -29,6 +33,8 @@ enum FailureKind: Equatable {
     case throttled
     case changedOnServer
     case retryable
+    /// Give up on this file now (retrying cannot help); the job continues.
+    case rejected
     /// Stop the whole job (wrong password, disk full).
     case fatal
     case cancelled
@@ -48,6 +54,7 @@ enum FailureClassifier {
             case .throttled, .timedOut: return .throttled
             case .changedOnServer: return .changedOnServer
             case .transient: return .retryable
+            case .checksumMismatch: return .rejected
             }
         case let error as SynoError:
             if error == .wrongPassword { return .fatal }

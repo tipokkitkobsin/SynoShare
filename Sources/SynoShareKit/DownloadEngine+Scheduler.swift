@@ -1,5 +1,13 @@
 import Foundation
 
+/// Which files a download loop works on.
+enum PassScope: Sendable {
+    /// The whole job: every pending file (main download).
+    case all
+    /// Only these remote paths (repair); other pending files are left alone.
+    case selection([String])
+}
+
 /// The download scheduler: passes over the pending queue with adaptive concurrency,
 /// per-file retry with backoff, and pause/resume via cancelling the current pass.
 extension DownloadEngine {
@@ -13,11 +21,11 @@ extension DownloadEngine {
         try createFolders()
         let ticker = startTicker()
         defer { ticker.cancel() }
-        try await downloadLoop()
+        try await downloadLoop(.all)
         tick()
     }
 
-    private func downloadLoop() async throws {
+    func downloadLoop(_ scope: PassScope) async throws {
         while !isStopping {
             if !volumeAvailable() { pause(.volumeUnavailable) }
             if !pauseReasons.isEmpty {
@@ -27,7 +35,7 @@ extension DownloadEngine {
             }
             setPhase(.downloading)
             if configuration.preventSleep { power.acquire() }
-            let pass = Task { try await self.downloadPass() }
+            let pass = Task { try await self.downloadPass(scope) }
             passTask = pass
             let result = await pass.result
             passTask = nil
@@ -45,9 +53,10 @@ extension DownloadEngine {
         }
     }
 
-    private func downloadPass() async throws {
-        let queue = try store.files(status: .pending)
-        try resetMeter()
+    private func downloadPass(_ scope: PassScope) async throws {
+        let files = try scopeFiles(scope)
+        let queue = files.filter { $0.status == .pending }
+        resetMeter(files)
         try await withThrowingTaskGroup(of: Void.self) { group in
             var iterator = queue.makeIterator()
             var running = 0
@@ -66,8 +75,15 @@ extension DownloadEngine {
         }
     }
 
-    private func resetMeter() throws {
-        let files = try store.files(status: .pending, .downloading, .failed, .done, .adopted)
+    /// The files a pass counts for progress; it downloads the pending ones among them.
+    private func scopeFiles(_ scope: PassScope) throws -> [FileRecord] {
+        switch scope {
+        case .all: return try store.files(status: .pending, .downloading, .failed, .done, .adopted)
+        case .selection(let paths): return try paths.compactMap { try store.file($0) }
+        }
+    }
+
+    private func resetMeter(_ files: [FileRecord]) {
         let total = files.reduce(Int64(0)) { $0 + $1.size }
         let completed = files.reduce(Int64(0)) { sum, file in
             sum + (file.status.isComplete ? file.size : min(partBytes(file), file.size))
@@ -114,6 +130,12 @@ extension DownloadEngine {
         if kind == .fatal {
             try? store.recordFailure(file.path, attempts: attempts, error: message, final: true)
             throw error
+        }
+        if kind == .rejected {
+            try store.recordFailure(file.path, attempts: attempts, error: message, final: true)
+            emit(.fileFailed(path: file.path, message: message))
+            note("rejected: \(file.relPath): \(message)")
+            return nil
         }
         var current = file
         switch kind {
@@ -172,7 +194,7 @@ extension DownloadEngine {
 
     private func job(for file: FileRecord) -> DownloadJob {
         DownloadJob(remotePath: file.path, root: destination, localPath: file.localPath, size: file.size,
-                    modified: file.modified, replaceExisting: file.replaceExisting)
+                    modified: file.modified, replaceExisting: file.replaceExisting, expectedHash: file.expectedHash)
     }
 
     private func makeDownloader() throws -> Downloader {
@@ -187,7 +209,7 @@ extension DownloadEngine {
 
     // MARK: - Ticker: progress events and volume checks
 
-    private func startTicker() -> Task<Void, Never> {
+    func startTicker() -> Task<Void, Never> {
         let interval = configuration.tickInterval
         return Task {
             while !Task.isCancelled {
