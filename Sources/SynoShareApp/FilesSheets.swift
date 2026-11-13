@@ -25,9 +25,11 @@ struct PathListSheet: View {
             HStack {
                 Button("Choose File…", systemImage: "folder") { isImporterPresented = true }
                 Spacer()
-                Button("Done") { dismiss() }
+                Button("Cancel") { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button("Select Listed Files") { model.applyPathList() }
+                Button("Select Listed Files") {
+                    if model.applyPathList() { dismiss() }
+                }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
                     .disabled(model.pathListText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)

@@ -186,6 +186,17 @@ final class FilesViewModelTests: XCTestCase {
         XCTAssertEqual(files.pathListResult?.sizeDifferences.map(\.relPath), ["b/bad.bin"])
     }
 
+    func testPathListTellsTheSheetToCloseOnlyWhenEveryLineMatched() async {
+        // The sheet stayed open after "Select Listed Files", which looked like a hang (2026-11-13).
+        let files = await loadedModel()
+
+        files.pathListText = "a/gone.bin\nB/BAD.BIN (41 bytes)"
+        XCTAssertTrue(files.applyPathList(), "all matched: close and show the selection")
+
+        files.pathListText = "a/gone.bin\nnope.bin"
+        XCTAssertFalse(files.applyPathList(), "stay open so the unmatched line is visible")
+    }
+
     func testPathListLoadsFromFile() async throws {
         let files = await loadedModel()
         let url = destination.appending(path: "list.txt")

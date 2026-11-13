@@ -75,11 +75,15 @@ extension FilesViewModel {
     }
 
     /// Adds every listed file to the selection; unmatched lines are reported, not fatal.
-    public func applyPathList() {
+    /// Returns true when every line matched, so the sheet can close; otherwise it stays
+    /// open to show the lines that were not found.
+    @discardableResult
+    public func applyPathList() -> Bool {
         let rootNames = Set([destination?.lastPathComponent].compactMap { $0 })
         let result = PathList.select(pathListText, from: entries, rootNames: rootNames)
         select(result.paths)
         pathListResult = result
+        return result.unmatched.isEmpty
     }
 
     // MARK: Repair
