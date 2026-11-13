@@ -1,19 +1,23 @@
 import Foundation
 import SynoShareKit
 
-/// Which files `files` and `repair` act on: a health/glob filter, a path list, or both (union).
+/// Which files `files` and `repair` act on: a health/glob filter, a path list, the saved
+/// repair queue, or any union of them.
 struct FileSelection: Equatable {
     /// Nil when no filter option was given.
     let filter: FileFilter?
     /// `--paths-from` value; `-` is standard input.
     let pathsFile: String?
+    /// `--queued`: the files a stopped or failed repair left in the queue.
+    var queued = false
 
-    /// The selected entries in listing order. With neither a filter nor a list, everything.
-    func apply(all: [FileEntry], filtered: [FileEntry], listText: String?,
+    /// The selected entries in listing order. With no filter, list or queue, everything.
+    func apply(all: [FileEntry], filtered: [FileEntry], listText: String?, queuedPaths: [String] = [],
                rootNames: Set<String>) -> (entries: [FileEntry], list: PathListSelection?) {
         let list = listText.map { PathList.select($0, from: all, rootNames: rootNames) }
-        guard filter != nil || list != nil else { return (all, nil) }
-        let wanted = Set((filter == nil ? [] : filtered.map(\.record.path)) + (list?.paths ?? []))
+        guard filter != nil || list != nil || queued else { return (all, nil) }
+        let wanted = Set((filter == nil ? [] : filtered.map(\.record.path)) + (list?.paths ?? [])
+            + (queued ? queuedPaths : []))
         return (all.filter { wanted.contains($0.record.path) }, list)
     }
 }
@@ -27,14 +31,15 @@ extension Arguments {
         return FileFilter(health: health, glob: glob)
     }
 
-    /// The filter (if any filter option was given) and the path list file.
+    /// The filter (if any filter option was given), the path list file and `--queued`.
     func selection(requireAny: Bool) throws -> FileSelection {
         let hasFilter = options["--health"] != nil || options["--match"] != nil || flags.contains("--broken")
         let pathsFile = options["--paths-from"]
-        if requireAny, !hasFilter, pathsFile == nil {
-            throw ArgumentError("choose files with --broken, --match <glob> or --paths-from <file>")
+        let queued = flags.contains("--queued")
+        if requireAny, !hasFilter, pathsFile == nil, !queued {
+            throw ArgumentError("choose files with --broken, --match <glob>, --paths-from <file> or --queued")
         }
-        return FileSelection(filter: hasFilter ? try fileFilter() : nil, pathsFile: pathsFile)
+        return FileSelection(filter: hasFilter ? try fileFilter() : nil, pathsFile: pathsFile, queued: queued)
     }
 
     private static func parseHealth(_ list: String) throws -> Set<FileHealth> {

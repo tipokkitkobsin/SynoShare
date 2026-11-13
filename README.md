@@ -58,16 +58,24 @@ synoshare speedtest    <share-url> --dest <folder> [--mib N]
 synoshare status       --dest <folder>
 synoshare verify       --dest <folder>
 synoshare resolve      --dest <folder> <remote-path> replace|keep-both
-synoshare files        --dest <folder> [--health <list>] [--broken] [--match <glob>] [--paths-from <file>]
+synoshare files        --dest <folder> [--health <list>] [--broken] [--match <glob>] [--paths-from <file>] [--queued]
 synoshare deep-verify  --dest <folder> [--restart]
 synoshare import-manifest --dest <folder> <manifest-file>
-synoshare repair       <share-url> --dest <folder> [--broken] [--match <glob>] [--paths-from <file>]
+synoshare repair       <share-url> --dest <folder> [--broken] [--match <glob>] [--paths-from <file>] [--queued]
+synoshare repair-queue --dest <folder> [--clear]
 ```
 
 `files` previews a selection; `repair` downloads again only the selected files (it needs
 `--broken`, `--match` or `--paths-from`; `--paths-from` takes one relative path per
 line, `-` for standard input, and adds to the other two). `deep-verify` hashes completed
 files (SHA-256) and resumes after Ctrl-C.
+
+Files chosen for repair stay in a repair queue until they are repaired and verified. A
+stopped, failed or interrupted repair keeps them queued (with their old copy and their
+`.part`), so `repair <share-url> --dest <folder> --queued` resumes it without choosing the
+files again; `--queued` adds to the other selectors. `repair-queue` lists the queue and
+`repair-queue --clear` empties it (local copies and `.part` files are kept). `download`
+never replaces a queued file.
 
 Ctrl-C stops gracefully; run the same command again to resume. Do not run the app and
 the CLI on the same destination at the same time.

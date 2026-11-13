@@ -11,15 +11,22 @@ usage:
   synoshare verify       --dest <folder>
   synoshare resolve      --dest <folder> <remote-path> replace|keep-both
   synoshare files        --dest <folder> [--health <list>] [--broken] [--match <glob>] [--paths-from <file>]
+                         [--queued]
   synoshare deep-verify  --dest <folder> [--restart]
   synoshare import-manifest --dest <folder> <manifest-file>
   synoshare repair       <share-url> --dest <folder> [--broken] [--match <glob>] [--paths-from <file>]
+                         [--queued]
+  synoshare repair-queue --dest <folder> [--clear]
 
 Health names: complete, missing, size-mismatch, checksum-mismatch, not-downloaded,
 unchecked. --broken = missing, size-mismatch and checksum-mismatch. --match takes a
 glob over the relative path (`*` within a folder, `**` across folders, `folder/**`).
 --paths-from reads one relative path per line (`-` = standard input); it adds to
---broken/--match. `repair` needs at least one of the three.
+--broken/--match. `repair` needs at least one of the four selectors.
+Files chosen for repair stay queued until they are repaired; a stopped or failed
+repair keeps them (and their .part). --queued selects them again, so
+`repair <share-url> --dest <folder> --queued` resumes where it stopped.
+`repair-queue` lists the queue; --clear empties it (local copies and .part kept).
 
 The share password is asked interactively (hidden). It is never read from
 arguments, environment or files, and never printed or stored.
@@ -31,7 +38,7 @@ for new files and files changed on the server.
 /// Parsed command line. Options take one value; flags take none.
 struct Arguments {
     static let valueOptions: Set<String> = ["--dest", "--concurrency", "--mib", "--health", "--match", "--paths-from"]
-    static let flagOptions: Set<String> = ["--allow-sleep", "--broken", "--restart"]
+    static let flagOptions: Set<String> = ["--allow-sleep", "--broken", "--restart", "--queued", "--clear"]
 
     let command: String
     let positionals: [String]

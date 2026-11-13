@@ -18,7 +18,7 @@ extension FileHealth {
     }
 }
 
-/// Terminal text for `files`, `import-manifest`, `repair` and path lists.
+/// Terminal text for `files`, `import-manifest`, `repair`, `repair-queue` and path lists.
 enum FileListing {
     static let healthWidth = FileHealth.allCases.map(\.cliName.count).max() ?? 0
     static let sizeWidth = 10
@@ -49,6 +49,16 @@ enum FileListing {
         ["repair: \(summary.repaired.count) repaired, \(summary.stillBroken.count) still broken"]
             + summary.repaired.map { "  repaired: \($0)" }
             + summary.stillBroken.map { "  still broken: \($0.relPath): \($0.message)" }
+    }
+
+    /// "2 file(s) waiting to be repaired, 3 KB (1 KB already downloaded)" and one line per file.
+    static func queueLines(_ files: [(health: FileHealth, size: Int64, relPath: String)], partBytes: Int64,
+                           limit: Int) -> [String] {
+        guard !files.isEmpty else { return ["no files are waiting to be repaired"] }
+        let total = files.reduce(Int64(0)) { $0 + $1.size }
+        let head = "\(files.count) file(s) waiting to be repaired, \(formatBytes(total)) "
+            + "(\(formatBytes(partBytes)) already downloaded)"
+        return [head] + limited(files.map { line(health: $0.health, size: $0.size, relPath: $0.relPath) }, limit: limit)
     }
 
     static func pathListLines(_ selection: PathListSelection, limit: Int) -> [String] {

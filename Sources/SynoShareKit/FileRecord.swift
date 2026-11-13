@@ -54,6 +54,9 @@ public struct FileRecord: Sendable, Equatable {
     public let hashedAt: Date?
     /// Reference checksum from an imported manifest (wins over `sha256` when comparing).
     public let expectedHash: ExpectedHash?
+    /// Selected for repair and not repaired yet: kept across stop, failure and restart
+    /// until the repair passes or the user clears the queue.
+    public let repairQueued: Bool
 
     init(row: SQLRow) {
         path = row.text("path") ?? ""
@@ -72,6 +75,7 @@ public struct FileRecord: Sendable, Equatable {
         sha256 = row.text("sha256")
         hashedAt = row.date("hashed_at")
         expectedHash = Self.expected(hex: row.text("expected_hash"), algorithm: row.text("expected_algo"))
+        repairQueued = (row.int("repair_queued") ?? 0) != 0
     }
 
     private static func expected(hex: String?, algorithm: String?) -> ExpectedHash? {

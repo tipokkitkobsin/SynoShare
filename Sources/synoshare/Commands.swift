@@ -30,6 +30,8 @@ enum Commands {
             try FileCommands.importManifest(arguments)
         case "repair":
             try await FileCommands.repair(arguments)
+        case "repair-queue":
+            try FileCommands.repairQueue(arguments)
         default:
             throw ArgumentError(usage)
         }

@@ -50,3 +50,19 @@ unselected files untouched (bytes and mtime); manifest mismatch after repair →
 | Commit 6 (app window) | ~1.5 h |
 | Review and fixes | ~0.5 h |
 | **Total** | **~5 h** |
+
+## Repair queue (added 2026-11-13 by the owner)
+
+Request: the app remembers which files are being repaired; after Stop, quit, pause and
+quit, or drive loss the user clicks Resume Repair instead of choosing the files again.
+
+- **Schema v3** (migration from v1/v2, keeps data): `file.repair_queued`.
+- `repair(paths:)` queues every target before it connects. A file leaves the queue only when
+  it is repaired and verified, or when it can never be repaired (unsafe name). Stop, quit,
+  failure, checksum reject and drive loss keep it queued with its old copy and its `.part`.
+- A process killed mid-repair leaves a queued file pending with permission to replace;
+  Download All first turns it back into a conflict, so only a repair replaces it.
+- Clearing the queue keeps the local copy and the `.part`, and withdraws replace permission.
+- CLI: `repair … --queued`, `files … --queued`, `repair-queue [--clear]`.
+- App: a banner in the Files window and a notice in the main window with Resume Repair and
+  Discard; queued rows show a "Queued for repair" mark.

@@ -1,7 +1,7 @@
 import Foundation
 import SynoShareKit
 
-/// `files`, `deep-verify`, `import-manifest` (offline) and `repair` (network).
+/// `files`, `deep-verify`, `import-manifest`, `repair-queue` (offline) and `repair` (network).
 enum FileCommands {
     static let listLimit = 50
 
@@ -60,6 +60,23 @@ enum FileCommands {
         FileListing.repairLines(summary).forEach { print($0) }
     }
 
+    /// Lists the repair queue, or with `--clear` empties it. Cleared files keep their local
+    /// copy and `.part`; they are never replaced unless selected for repair again.
+    static func repairQueue(_ arguments: Arguments) throws {
+        try arguments.requirePositionals(0)
+        let destination = try arguments.destination()
+        let queued = try DownloadEngine.queuedRepairs(destination: destination)
+        if arguments.flags.contains("--clear") {
+            try DownloadEngine.clearRepairQueue(destination: destination)
+            print("repair queue cleared: \(queued.count) file(s); local copies and .part files are kept")
+            return
+        }
+        let partBytes = try DownloadEngine.queuedRepairPartBytes(destination: destination)
+        let rows = queued.map { (health: $0.health, size: $0.record.size, relPath: $0.record.relPath) }
+        FileListing.queueLines(rows, partBytes: partBytes, limit: listLimit).forEach { print($0) }
+        if !queued.isEmpty { print("resume with: synoshare repair <share-url> --dest <folder> --queued") }
+    }
+
     /// Entries chosen by the filter options and/or `--paths-from`, read offline.
     private static func select(_ arguments: Arguments, destination: URL,
                                requireAny: Bool) throws -> (entries: [FileEntry], list: PathListSelection?) {
@@ -67,8 +84,9 @@ enum FileCommands {
         let all = try DownloadEngine.fileEntries(destination: destination)
         let filtered = try selection.filter.map { try DownloadEngine.fileEntries(destination: destination, matching: $0) }
         let listText = try selection.pathsFile.map(readPathList)
+        let queued = selection.queued ? try DownloadEngine.queuedRepairs(destination: destination) : []
         return selection.apply(all: all, filtered: filtered ?? all, listText: listText,
-                               rootNames: [destination.lastPathComponent])
+                               queuedPaths: queued.map(\.record.path), rootNames: [destination.lastPathComponent])
     }
 }
 

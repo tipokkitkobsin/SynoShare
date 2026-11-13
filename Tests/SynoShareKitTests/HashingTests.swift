@@ -17,7 +17,7 @@ final class SchemaV2Tests: XCTestCase {
     func testNewDatabaseIsCreatedAtSchemaV2() throws {
         let store = try StateStore.open(destination: destination)
 
-        XCTAssertEqual(try store.schemaVersion(), 2)
+        XCTAssertEqual(try store.schemaVersion(), StateStore.schemaVersion)
         let columns = Set(try store.fileColumns())
         XCTAssertTrue(columns.isSuperset(of: ["sha256", "hashed_at", "expected_hash", "expected_algo"]))
     }
@@ -28,7 +28,7 @@ final class SchemaV2Tests: XCTestCase {
         let store = try StateStore.open(destination: destination)
         let record = try store.file("/R/a.txt")
 
-        XCTAssertEqual(try store.schemaVersion(), 2)
+        XCTAssertEqual(try store.schemaVersion(), StateStore.schemaVersion)
         XCTAssertEqual(record?.status, .done)
         XCTAssertEqual(record?.size, 3)
         XCTAssertEqual(record?.note, "kept")
@@ -43,7 +43,7 @@ final class SchemaV2Tests: XCTestCase {
 
         let reopened = try StateStore.open(destination: destination)
 
-        XCTAssertEqual(try reopened.schemaVersion(), 2)
+        XCTAssertEqual(try reopened.schemaVersion(), StateStore.schemaVersion)
         XCTAssertEqual(try reopened.fileCount(), 1)
     }
 

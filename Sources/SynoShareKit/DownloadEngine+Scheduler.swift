@@ -15,6 +15,7 @@ extension DownloadEngine {
         _ = try await connectedClient()
         if try !store.isListingComplete { try await listShare(refresh: false) }
         guard !isStopping else { return }
+        try store.parkInterruptedRepairs()
         try reconcileExisting()
         try store.resetInterrupted()
         try checkFreeSpace()

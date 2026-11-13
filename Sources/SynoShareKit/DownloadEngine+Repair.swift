@@ -12,11 +12,14 @@ public struct RepairSummary: Sendable, Equatable {
 struct RepairPlan {
     let targets: [FileRecord]
     let rejected: [FileIssue]
+    /// Remote paths of known files that can never be repaired: they leave the queue.
+    let unrepairable: [String]
 
     init(paths: [String], store: StateStore) throws {
         var seen: Set<String> = []
         var targets: [FileRecord] = []
         var rejected: [FileIssue] = []
+        var unrepairable: [String] = []
         for path in paths where seen.insert(path).inserted {
             guard let record = try store.file(path) else {
                 rejected.append(FileIssue(relPath: path, message: "unknown file"))
@@ -24,12 +27,14 @@ struct RepairPlan {
             }
             guard record.status != .skippedUnsafe else {
                 rejected.append(FileIssue(relPath: record.relPath, message: "unsafe file name; cannot be saved"))
+                unrepairable.append(record.path)
                 continue
             }
             targets.append(record)
         }
         self.targets = targets
         self.rejected = rejected
+        self.unrepairable = unrepairable
     }
 }
 
@@ -40,11 +45,16 @@ extension DownloadEngine {
     /// with a `.part` that passed the size and manifest checks. Every downloaded file is
     /// verified again; files not repaired go back to their previous state.
     ///
+    /// Every target joins the repair queue first and leaves it only once it is repaired and
+    /// verified, so an interrupted repair can be resumed (`resumeRepair()`).
+    ///
     /// The engine must be idle: pause and stop the main download first.
     public func repair(paths: [String]) async throws -> RepairSummary {
         try beginRun()
         defer { endRun() }
         let plan = try RepairPlan(paths: paths, store: store)
+        try store.unqueueRepair(plan.unrepairable)
+        try store.queueRepair(plan.targets.map(\.path))
         note("repair: \(plan.targets.count) file(s) selected, \(plan.rejected.count) not repairable")
         do {
             try await cancellingOnTaskCancel { try await self.runRepair(plan.targets) }
@@ -65,7 +75,7 @@ extension DownloadEngine {
         tick()
     }
 
-    /// Verifies what was downloaded and restores what was not.
+    /// Verifies what was downloaded and restores what was not. Files not repaired stay queued.
     private func settle(_ plan: RepairPlan) throws -> RepairSummary {
         var repaired: [String] = []
         var broken = plan.rejected
@@ -78,6 +88,7 @@ extension DownloadEngine {
                 continue
             }
             if let issue = try DeepVerifier.verifyFile(current, store: store) {
+                try store.queueRepair([current.path])
                 broken.append(issue)
             } else {
                 repaired.append(current.relPath)

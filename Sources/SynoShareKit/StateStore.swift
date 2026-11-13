@@ -38,7 +38,8 @@ public final class StateStore: @unchecked Sendable {
     }
 
     /// Current schema. v1: listing and progress. v2: checksums (`docs/REPAIR_PLAN.md`).
-    static let schemaVersion = 2
+    /// v3: the repair queue (`file.repair_queued`).
+    static let schemaVersion = 3
 
     private func migrate() throws {
         _ = try db.query("PRAGMA journal_mode=WAL")
@@ -48,14 +49,20 @@ public final class StateStore: @unchecked Sendable {
         }
         try db.execute("PRAGMA synchronous=NORMAL;" + Self.schema)
         if version == 1 { try migrateV1toV2() }
+        if (1...2).contains(version) { try addMissingColumns(Self.v3Columns) }
         try db.execute("PRAGMA user_version = \(Self.schemaVersion)")
     }
 
     /// v1 → v2 keeps every row; the new checksum columns start empty.
     private func migrateV1toV2() throws {
+        try addMissingColumns(Self.v2Columns)
+    }
+
+    /// Adds columns to `file`, keeping every row; v2 → v3 starts with an empty repair queue.
+    private func addMissingColumns(_ columns: [(String, String)]) throws {
         let existing = Set(try fileColumns())
         try db.transaction {
-            for (column, type) in Self.v2Columns where !existing.contains(column) {
+            for (column, type) in columns where !existing.contains(column) {
                 try db.execute("ALTER TABLE file ADD COLUMN \(column) \(type)")
             }
         }
@@ -71,6 +78,7 @@ public final class StateStore: @unchecked Sendable {
 
     private static let v2Columns = [("sha256", "TEXT"), ("hashed_at", "REAL"),
                                     ("expected_hash", "TEXT"), ("expected_algo", "TEXT")]
+    private static let v3Columns = [("repair_queued", "INTEGER NOT NULL DEFAULT 0")]
 
     private static let schema = """
         CREATE TABLE IF NOT EXISTS job(
@@ -86,7 +94,8 @@ public final class StateStore: @unchecked Sendable {
             status TEXT NOT NULL, bytes_done INTEGER NOT NULL DEFAULT 0,
             attempts INTEGER NOT NULL DEFAULT 0, last_error TEXT, verified_at REAL,
             note TEXT, replace_ok INTEGER NOT NULL DEFAULT 0,
-            sha256 TEXT, hashed_at REAL, expected_hash TEXT, expected_algo TEXT);
+            sha256 TEXT, hashed_at REAL, expected_hash TEXT, expected_algo TEXT,
+            repair_queued INTEGER NOT NULL DEFAULT 0);
         CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value);
         CREATE INDEX IF NOT EXISTS file_status ON file(status);
         CREATE INDEX IF NOT EXISTS file_parent ON file(parent);

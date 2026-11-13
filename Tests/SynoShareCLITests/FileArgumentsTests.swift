@@ -68,10 +68,31 @@ final class FileArgumentsTests: XCTestCase {
     }
 
     func testUsageListsTheNewCommands() {
-        for command in ["files", "deep-verify", "import-manifest", "repair"] {
+        for command in ["files", "deep-verify", "import-manifest", "repair", "repair-queue"] {
             XCTAssertTrue(usage.contains("synoshare \(command)"), command)
         }
         XCTAssertTrue(usage.contains("--paths-from"))
+        XCTAssertTrue(usage.contains("--queued"))
+    }
+
+    func testQueuedAloneIsEnoughForRepair() throws {
+        let selection = try Arguments(["repair", "u", "--dest", "/d", "--queued"]).selection(requireAny: true)
+
+        XCTAssertTrue(selection.queued)
+        XCTAssertNil(selection.filter)
+        XCTAssertNil(selection.pathsFile)
+    }
+
+    func testRepairWithoutSelectorMentionsQueued() {
+        XCTAssertThrowsError(try Arguments(["repair", "u", "--dest", "/d"]).selection(requireAny: true)) { error in
+            XCTAssertTrue(error.localizedDescription.contains("--queued"))
+        }
+    }
+
+    func testClearIsAFlag() throws {
+        let arguments = try Arguments(["repair-queue", "--dest", "/d", "--clear"])
+
+        XCTAssertTrue(arguments.flags.contains("--clear"))
     }
 }
 
@@ -91,6 +112,34 @@ final class FileSelectionTests: XCTestCase {
 
         XCTAssertEqual(result.entries, [all[1], all[2]])
         XCTAssertEqual(result.list?.unmatched, ["zzz"])
+    }
+
+    func testQueuedIsAUnionWithFilterAndList() {
+        let all = [entry("a"), entry("b"), entry("c"), entry("d")]
+        let selection = FileSelection(filter: FileFilter(glob: "c"), pathsFile: "-", queued: true)
+
+        let result = selection.apply(all: all, filtered: [all[2]], listText: "b", queuedPaths: ["/R/d"],
+                                     rootNames: [])
+
+        XCTAssertEqual(result.entries, [all[1], all[2], all[3]])
+    }
+
+    func testQueuedAloneSelectsOnlyQueuedFiles() {
+        let all = [entry("a"), entry("b")]
+
+        let result = FileSelection(filter: nil, pathsFile: nil, queued: true)
+            .apply(all: all, filtered: all, listText: nil, queuedPaths: ["/R/b"], rootNames: [])
+
+        XCTAssertEqual(result.entries, [all[1]])
+    }
+
+    func testEmptyQueueAloneSelectsNothing() {
+        let all = [entry("a")]
+
+        let result = FileSelection(filter: nil, pathsFile: nil, queued: true)
+            .apply(all: all, filtered: all, listText: nil, queuedPaths: [], rootNames: [])
+
+        XCTAssertEqual(result.entries, [])
     }
 
     func testNoFilterAndNoListSelectsEverything() {
@@ -150,6 +199,20 @@ final class FileListingTests: XCTestCase {
 
         XCTAssertEqual(lines.first, "manifest: 3 matched, 1 already mismatched, 3 unknown path(s), 1 invalid line(s)")
         XCTAssertEqual(Array(lines.dropFirst()), ["  unknown: x", "  unknown: y", "  ... and 1 more"])
+    }
+
+    func testQueueLinesListFilesAndTotal() {
+        let lines = FileListing.queueLines([(health: .sizeMismatch, size: 2048, relPath: "a.bin"),
+                                            (health: .missing, size: 1024, relPath: "b.bin")],
+                                           partBytes: 1024, limit: 1)
+
+        XCTAssertEqual(lines.first, "2 file(s) waiting to be repaired, 3 KB (1 KB already downloaded)")
+        XCTAssertTrue(lines[1].hasSuffix("  a.bin"))
+        XCTAssertEqual(lines.last, "  ... and 1 more")
+    }
+
+    func testEmptyQueueLine() {
+        XCTAssertEqual(FileListing.queueLines([], partBytes: 0, limit: 5), ["no files are waiting to be repaired"])
     }
 
     func testRepairSummaryListsRepairedAndStillBroken() {
