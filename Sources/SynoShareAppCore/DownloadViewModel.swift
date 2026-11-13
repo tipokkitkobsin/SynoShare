@@ -7,6 +7,7 @@ public enum EngineOperation: String, Sendable {
     case list = "Listing"
     case download = "Downloading"
     case retryFailed = "Retrying failed files"
+    case repair = "Repairing files"
 }
 
 public struct ListingProgress: Sendable, Equatable {
@@ -61,6 +62,8 @@ public final class DownloadViewModel {
     var engineKey: EngineKey?
     var eventTask: Task<Void, Never>?
     var activeTask: Task<Void, Never>?
+    /// A repair started from the Files window; quitting waits for it to settle.
+    var repairTask: Task<RepairSummary, Error>?
     var savedPasswordThisRun = false
     var lastRefresh = Date.distantPast
     let refreshInterval: TimeInterval
@@ -182,6 +185,7 @@ public final class DownloadViewModel {
         if let engine {
             await engine.stop()
             await activeTask?.value
+            _ = try? await repairTask?.value
             await engine.shutdown()
         }
         eventTask?.cancel()

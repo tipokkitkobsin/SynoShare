@@ -9,7 +9,9 @@ public struct FileIssue: Sendable, Equatable {
 /// Summary of a job, built offline from the state database.
 public struct Report: Sendable, Equatable {
     public static let integrityNote =
-        "Note: files are checked by size only. A size match is not an integrity guarantee; the server offers no checksum."
+        "Note: Verify checks sizes only. A SHA-256 is recorded while each file downloads; Deep Verify re-hashes "
+        + "files on disk against it (or against an imported checksum manifest) and records a baseline for older "
+        + "files. The server offers no checksum, so only a manifest proves a file matches the original."
 
     public let folders: Int
     public let files: Int

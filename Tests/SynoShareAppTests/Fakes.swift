@@ -12,6 +12,8 @@ actor FakeEngine: EngineControlling {
     private(set) var calls: [String] = []
     var conflictList: [ConflictItem] = []
     private(set) var resolved: [(String, ConflictResolution)] = []
+    private(set) var repairedPaths: [[String]] = []
+    var repairResult: Result<RepairSummary, Error> = .success(RepairSummary(repaired: [], stillBroken: []))
 
     init() {
         (events, sink) = AsyncStream.makeStream(of: EngineEvent.self)
@@ -23,7 +25,26 @@ actor FakeEngine: EngineControlling {
         if let conflicts { conflictList = conflicts }
     }
 
+    /// `repair` waits for `stop()`, then takes a moment to settle (like re-verifying files).
+    var holdRepair = false
+
+    func configure(repairResult: Result<RepairSummary, Error>? = nil, holdRepair: Bool? = nil) {
+        if let repairResult { self.repairResult = repairResult }
+        if let holdRepair { self.holdRepair = holdRepair }
+    }
+
     func emit(_ event: EngineEvent) { sink.yield(event) }
+
+    func repair(paths: [String]) async throws -> RepairSummary {
+        calls.append("repair")
+        repairedPaths.append(paths)
+        if holdRepair {
+            await withCheckedContinuation { held = $0 }
+            try? await Task.sleep(for: .milliseconds(100))
+            calls.append("repairSettled")
+        }
+        return try repairResult.get()
+    }
 
     private func operation(_ name: String) async throws -> Report {
         calls.append(name)
@@ -96,6 +117,36 @@ final class FakeOfflineReader: OfflineJobReading, @unchecked Sendable {
     var storedReport: Report = .sample()
     var storedConflicts: [ConflictItem] = []
     private(set) var resolved: [String] = []
+    var storedEntries: [FileEntry] = []
+    var deepVerifyResult = DeepVerifyResult(checked: 2, skipped: 0, ok: 1, baselined: 1,
+                                            problems: [FileIssue(relPath: "b.bin", message: "checksum mismatch (sha256)")],
+                                            cancelled: false)
+    /// Deep Verify waits for cancellation instead of finishing.
+    var holdDeepVerify = false
+    var manifestResult = ManifestImportResult(matched: 1, unknownPaths: ["zz.bin"], invalidLines: 0, mismatched: 0)
+    private(set) var deepVerifyRestarts: [Bool] = []
+    private(set) var manifestTexts: [String] = []
+
+    func fileEntries(at destination: URL) throws -> [FileEntry] { lock.withLock { storedEntries } }
+
+    func deepVerify(at destination: URL, restart: Bool,
+                    progress: @escaping @Sendable (DeepVerifyProgress) -> Void) async throws -> DeepVerifyResult {
+        let (hold, result) = lock.withLock { () -> (Bool, DeepVerifyResult) in
+            deepVerifyRestarts.append(restart)
+            return (holdDeepVerify, deepVerifyResult)
+        }
+        progress(DeepVerifyProgress(filesDone: 1, filesTotal: 2, relPath: "a.bin"))
+        guard hold else { return result }
+        while !Task.isCancelled { try? await Task.sleep(for: .milliseconds(5)) }
+        return DeepVerifyResult(checked: 1, skipped: 0, ok: 1, baselined: 0, problems: [], cancelled: true)
+    }
+
+    func importManifest(at destination: URL, text: String) throws -> ManifestImportResult {
+        lock.withLock {
+            manifestTexts.append(text)
+            return manifestResult
+        }
+    }
 
     func hasState(at destination: URL) -> Bool { lock.withLock { stateExists } }
     func report(at destination: URL) throws -> Report { lock.withLock { storedReport } }
@@ -108,6 +159,34 @@ final class FakeOfflineReader: OfflineJobReading, @unchecked Sendable {
             resolved.append(path)
             storedConflicts.removeAll { $0.path == path }
         }
+    }
+}
+
+extension FileEntry {
+    /// A tracked file under share root `/S` with the given health.
+    static func fake(_ relPath: String, _ health: FileHealth, size: Int64 = 100) -> FileEntry {
+        var columns: [String: SQLValue] = [
+            "path": .text("/S/\(relPath)"), "parent": .text("/S"), "rel_path": .text(relPath),
+            "local_path": .text(relPath), "size": .integer(size),
+        ]
+        switch health {
+        case .complete:
+            columns["status"] = .text("done")
+            columns["sha256"] = .text(String(repeating: "a", count: 64))
+            columns["hashed_at"] = .real(1000)
+        case .unchecked: columns["status"] = .text("done")
+        case .missing:
+            columns["status"] = .text("pending")
+            columns["last_error"] = .text(StateStore.verifyPrefix + "missing")
+        case .sizeMismatch: columns["status"] = .text("conflict")
+        case .checksumMismatch:
+            columns["status"] = .text("conflict")
+            columns["last_error"] = .text(StateStore.checksumErrorPrefix + " (sha256)")
+        case .notDownloaded: columns["status"] = .text("pending")
+        }
+        let entry = FileEntry(record: FileRecord(row: SQLRow(columns: columns)))
+        precondition(entry.health == health, "fake entry for \(health) classified as \(entry.health)")
+        return entry
     }
 }
 

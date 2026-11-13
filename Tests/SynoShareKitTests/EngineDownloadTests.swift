@@ -24,7 +24,7 @@ final class EngineDownloadTests: EngineTestCase {
         XCTAssertEqual(report.expectedBytes, Int64(big.count + 5))
         XCTAssertEqual(report.completedBytes, report.expectedBytes)
         XCTAssertTrue(report.listingComplete)
-        XCTAssertTrue(report.text.contains("not an integrity guarantee"))
+        XCTAssertTrue(report.text.contains("SHA-256") && report.text.contains("Deep Verify"))
         XCTAssertFalse(FileManager.default.fileExists(atPath: local("a.txt.synoshare.part").path))
         await engine.shutdown()
     }

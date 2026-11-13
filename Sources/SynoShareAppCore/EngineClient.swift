@@ -16,6 +16,8 @@ public protocol EngineControlling: Sendable {
     func verify() async throws -> VerificationResult
     func resolveConflict(path: String, resolution: ConflictResolution) async throws
     func conflicts() async throws -> [ConflictItem]
+    /// Downloads only these remote paths again; the engine must be idle.
+    func repair(paths: [String]) async throws -> RepairSummary
 }
 
 extension DownloadEngine: EngineControlling {
@@ -53,6 +55,11 @@ public protocol OfflineJobReading: Sendable {
     func conflicts(at destination: URL) throws -> [ConflictItem]
     func verify(at destination: URL) throws -> VerificationResult
     func resolveConflict(at destination: URL, path: String, resolution: ConflictResolution) throws
+    func fileEntries(at destination: URL) throws -> [FileEntry]
+    /// Resumable; cancelling the calling task stops it between chunks.
+    func deepVerify(at destination: URL, restart: Bool,
+                    progress: @escaping @Sendable (DeepVerifyProgress) -> Void) async throws -> DeepVerifyResult
+    func importManifest(at destination: URL, text: String) throws -> ManifestImportResult
 }
 
 public struct OfflineJobReader: OfflineJobReading {
@@ -78,6 +85,19 @@ public struct OfflineJobReader: OfflineJobReading {
 
     public func resolveConflict(at destination: URL, path: String, resolution: ConflictResolution) throws {
         try StateStore.open(destination: destination, create: false).resolveConflict(path, resolution)
+    }
+
+    public func fileEntries(at destination: URL) throws -> [FileEntry] {
+        try DownloadEngine.fileEntries(destination: destination)
+    }
+
+    public func deepVerify(at destination: URL, restart: Bool,
+                           progress: @escaping @Sendable (DeepVerifyProgress) -> Void) async throws -> DeepVerifyResult {
+        try await DownloadEngine.deepVerify(destination: destination, restart: restart, progress: progress)
+    }
+
+    public func importManifest(at destination: URL, text: String) throws -> ManifestImportResult {
+        try DownloadEngine.importManifest(destination: destination, text: text)
     }
 }
 

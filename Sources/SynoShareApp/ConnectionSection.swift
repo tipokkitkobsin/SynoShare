@@ -85,6 +85,8 @@ struct ActionsSection: View {
                     .help("Re-check sizes of completed files on disk. No network needed.")
                 Button("Summary", systemImage: "list.bullet.rectangle") { model.isSummaryPresented = true }
                     .disabled(model.report == nil)
+                OpenFilesWindowButton()
+                    .disabled(model.destination == nil)
             }
             .labelStyle(.titleAndIcon)
             if let advice = model.error(for: .general) { FieldErrorView(advice: advice) }

@@ -29,6 +29,10 @@ public struct ErrorAdvice: Sendable, Equatable {
         field: .destination, message: "Choose a destination folder.",
         recovery: "Click Choose… and pick a folder on a drive with enough free space.")
 
+    public static let busy = ErrorAdvice(
+        field: .general, message: "Another check or repair is still running.",
+        recovery: "Wait for it to finish, then try again.")
+
     /// Maps engine and system errors to advice. Messages carry no secrets
     /// (the engine already redacts link ids; the password is never in an error).
     public static func make(for error: Error) -> ErrorAdvice {

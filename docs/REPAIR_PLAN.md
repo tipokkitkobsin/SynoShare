@@ -17,6 +17,10 @@ Date: 2026-11-13. Status: approved by the owner 2026-11-13.
   "Broken" = missing, sizeMismatch or checksumMismatch.
 - **Checksum compare order**: manifest hash (if imported) wins over the recorded download hash.
 - **Manifest**: lines `<hex>  <path>`; 32 hex = MD5, 64 hex = SHA-256; paths relative to the share root; unknown paths reported, not fatal.
+- **Path list** (added 2026-11-13 by the owner): one relative path per line (pasted or a file); `#` comments and
+  blank lines ignored; `./`, a trailing `(1,234 bytes)` and a leading share-root/destination folder name removed;
+  case-insensitive; unmatched lines and size differences reported, never fatal. Adds to the glob/status selection.
+  CLI `--paths-from <file|->`, app "Select from List…".
 - **Glob filter**: `*` within a path segment, `**` across segments, matched against the relative path. A folder = `folder/**`.
 - **Repair of one file**: download to `.synoshare.part` (Range resume if a part exists and the server answers 206; full re-download on 200), check size, hash; if a manifest hash exists it must match. Pass → atomic rename over the old file. Fail → old file untouched, file reported as still broken.
 - **After repair**: re-verify every repaired file; summary lists repaired / still broken (with reason).

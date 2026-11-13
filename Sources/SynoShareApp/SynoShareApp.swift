@@ -12,13 +12,44 @@ struct SynoShareApp: App {
                 .frame(minWidth: 620, idealWidth: 720, minHeight: 640, idealHeight: 820)
         }
         .windowResizability(.contentMinSize)
+        .commands {
+            CommandGroup(before: .windowList) { OpenFilesWindowButton() }
+        }
+
+        Window("Files", id: FilesWindow.id) {
+            FilesView(model: appDelegate.files)
+                .frame(minWidth: 720, idealWidth: 900, minHeight: 480, idealHeight: 640)
+        }
+    }
+}
+
+enum FilesWindow {
+    static let id = "files"
+}
+
+/// Opens the Files window (menu command and main window button).
+struct OpenFilesWindowButton: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button("Files…", systemImage: "list.bullet.rectangle.portrait") { openWindow(id: FilesWindow.id) }
+            .keyboardShortcut("f", modifiers: [.command, .shift])
+            .help("Show every file with its status, and repair the files you choose.")
     }
 }
 
 /// Owns the model so quitting can stop the engine cleanly (finish chunks, flush state).
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    let model = DownloadViewModel()
+    let model: DownloadViewModel
+    let files: FilesViewModel
+
+    override init() {
+        let model = DownloadViewModel()
+        self.model = model
+        files = FilesViewModel(download: model)
+        super.init()
+    }
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)

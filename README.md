@@ -76,7 +76,9 @@ the CLI on the same destination at the same time.
 
 - Throughput through the QuickConnect relay is limited by Synology (about 0.6–0.9 MB/s
   in testing). Direct access to the NAS is much faster when available.
-- Size match is not an integrity guarantee: the sharing API exposes no checksums.
+- The sharing API exposes no checksums. SynoShare records a SHA-256 while downloading and
+  Deep Verify re-hashes files against it; an imported `sha256sum`/`md5sum` manifest is the
+  only check against the original on the server.
 - The protocol is undocumented; a DSM update may change it. See `docs/RESEARCH.md`.
 
 ## Acknowledgements
