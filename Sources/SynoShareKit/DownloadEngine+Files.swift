@@ -29,3 +29,18 @@ extension DownloadEngine {
                                     progress: progress)
     }
 }
+
+/// Checksum manifests (`sha256sum` / `md5sum` text).
+extension DownloadEngine {
+    /// Records the manifest's hashes as each file's expected hash. Unknown paths are reported.
+    public func importManifest(_ text: String) throws -> ManifestImportResult {
+        let result = try store.importManifest(Manifest.parse(text))
+        note("manifest imported: \(result.matched) matched, \(result.unknownPaths.count) unknown")
+        return result
+    }
+
+    /// Offline manifest import (no network, no password).
+    public static func importManifest(destination: URL, text: String) throws -> ManifestImportResult {
+        try StateStore.open(destination: destination, create: false).importManifest(Manifest.parse(text))
+    }
+}
