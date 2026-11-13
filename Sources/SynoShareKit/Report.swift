@@ -84,27 +84,35 @@ public enum Verifier {
         let complete = try store.files(status: .done, .adopted)
         var problems: [FileIssue] = []
         for file in complete {
-            let url = PathMapper.localURL(destination: store.destination, relative: file.localPath)
-            let localSize: Int64?
-            do {
-                localSize = try SafeFS.regularFileSize(url)
-            } catch {
-                try store.markVerifyProblem(file.path, message: error.localizedDescription)
-                problems.append(FileIssue(relPath: file.relPath, message: error.localizedDescription))
-                continue
-            }
-            switch localSize {
-            case nil:
-                try store.requeueMissing(file.path)
-                problems.append(FileIssue(relPath: file.relPath, message: "missing"))
-            case let size? where size != file.size:
-                let message = "size \(size), expected \(file.size)"
-                try store.markVerifyConflict(file.path, message: message)
-                problems.append(FileIssue(relPath: file.relPath, message: message))
-            default:
+            if let problem = try checkSize(file, store: store) {
+                problems.append(problem)
+            } else {
                 try store.markVerified(file.path, at: now)
             }
         }
         return VerificationResult(checked: complete.count, ok: complete.count - problems.count, problems: problems)
+    }
+
+    /// Size check of one completed file; records and returns the problem, or nil when it is fine.
+    static func checkSize(_ file: FileRecord, store: StateStore) throws -> FileIssue? {
+        let url = PathMapper.localURL(destination: store.destination, relative: file.localPath)
+        let localSize: Int64?
+        do {
+            localSize = try SafeFS.regularFileSize(url)
+        } catch {
+            try store.markVerifyProblem(file.path, message: error.localizedDescription)
+            return FileIssue(relPath: file.relPath, message: error.localizedDescription)
+        }
+        switch localSize {
+        case nil:
+            try store.requeueMissing(file.path)
+            return FileIssue(relPath: file.relPath, message: "missing")
+        case let size? where size != file.size:
+            let message = "size \(size), expected \(file.size)"
+            try store.markVerifyConflict(file.path, message: message)
+            return FileIssue(relPath: file.relPath, message: message)
+        default:
+            return nil
+        }
     }
 }

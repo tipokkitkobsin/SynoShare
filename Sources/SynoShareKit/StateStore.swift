@@ -87,6 +87,7 @@ public final class StateStore: @unchecked Sendable {
             attempts INTEGER NOT NULL DEFAULT 0, last_error TEXT, verified_at REAL,
             note TEXT, replace_ok INTEGER NOT NULL DEFAULT 0,
             sha256 TEXT, hashed_at REAL, expected_hash TEXT, expected_algo TEXT);
+        CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value);
         CREATE INDEX IF NOT EXISTS file_status ON file(status);
         CREATE INDEX IF NOT EXISTS file_parent ON file(parent);
         CREATE INDEX IF NOT EXISTS folder_parent ON folder(parent);
