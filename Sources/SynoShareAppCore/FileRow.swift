@@ -8,12 +8,15 @@ public struct FileRow: Sendable, Equatable, Identifiable {
     public let relPath: String
     public let size: Int64
     public let health: FileHealth
+    /// Waiting in the repair queue (shown with a symbol and text, not color alone).
+    public let isRepairQueued: Bool
 
     public init(entry: FileEntry) {
         id = entry.record.path
         relPath = entry.record.relPath
         size = entry.record.size
         health = entry.health
+        isRepairQueued = entry.record.repairQueued
     }
 
     /// Sort key for the status column: broken first, then the rest.

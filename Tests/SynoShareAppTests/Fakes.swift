@@ -126,6 +126,10 @@ final class FakeOfflineReader: OfflineJobReading, @unchecked Sendable {
     var manifestResult = ManifestImportResult(matched: 1, unknownPaths: ["zz.bin"], invalidLines: 0, mismatched: 0)
     private(set) var deepVerifyRestarts: [Bool] = []
     private(set) var manifestTexts: [String] = []
+    var queuedPartBytes: Int64 = 0
+    /// What `fileEntries` returns after the repair queue was cleared.
+    var entriesAfterClear: [FileEntry]?
+    private(set) var queueClears = 0
 
     func fileEntries(at destination: URL) throws -> [FileEntry] { lock.withLock { storedEntries } }
 
@@ -148,6 +152,15 @@ final class FakeOfflineReader: OfflineJobReading, @unchecked Sendable {
         }
     }
 
+    func queuedRepairPartBytes(at destination: URL) throws -> Int64 { lock.withLock { queuedPartBytes } }
+
+    func clearRepairQueue(at destination: URL) throws {
+        lock.withLock {
+            queueClears += 1
+            if let entriesAfterClear { storedEntries = entriesAfterClear }
+        }
+    }
+
     func hasState(at destination: URL) -> Bool { lock.withLock { stateExists } }
     func report(at destination: URL) throws -> Report { lock.withLock { storedReport } }
     func conflicts(at destination: URL) throws -> [ConflictItem] { lock.withLock { storedConflicts } }
@@ -164,10 +177,10 @@ final class FakeOfflineReader: OfflineJobReading, @unchecked Sendable {
 
 extension FileEntry {
     /// A tracked file under share root `/S` with the given health.
-    static func fake(_ relPath: String, _ health: FileHealth, size: Int64 = 100) -> FileEntry {
+    static func fake(_ relPath: String, _ health: FileHealth, size: Int64 = 100, queued: Bool = false) -> FileEntry {
         var columns: [String: SQLValue] = [
             "path": .text("/S/\(relPath)"), "parent": .text("/S"), "rel_path": .text(relPath),
-            "local_path": .text(relPath), "size": .integer(size),
+            "local_path": .text(relPath), "size": .integer(size), "repair_queued": .integer(queued ? 1 : 0),
         ]
         switch health {
         case .complete:

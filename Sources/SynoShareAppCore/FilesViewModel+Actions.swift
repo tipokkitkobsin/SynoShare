@@ -92,18 +92,26 @@ extension FilesViewModel {
     /// main download first), then shows the result and reloads.
     public func repairSelected() async {
         guard canRepair else { return }
+        guard let summary = await runRepair(Array(selection).sorted()) else { return }
+        keepSelected(relPaths: Set(summary.stillBroken.map(\.relPath)))
+    }
+
+    /// The shared repair flow (Repair N and Resume Repair): runs, shows the result, reloads.
+    /// Returns nil when the repair could not run or failed; the error is shown.
+    func runRepair(_ paths: [String]) async -> RepairSummary? {
         isRepairing = true
         error = nil
+        defer { isRepairing = false }
         do {
-            let summary = try await download.repairFiles(Array(selection).sorted())
+            let summary = try await download.repairFiles(paths)
             repairSummary = summary
             isRepairResultPresented = true
             await load()
-            keepSelected(relPaths: Set(summary.stillBroken.map(\.relPath)))
+            return summary
         } catch {
             self.error = ErrorAdvice.make(for: error)
+            return nil
         }
-        isRepairing = false
     }
 
     // MARK: Repair controls (same engine as the main download)

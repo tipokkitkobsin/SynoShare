@@ -61,6 +61,7 @@ struct ConnectionSection: View {
 /// The main command buttons.
 struct ActionsSection: View {
     @Bindable var model: DownloadViewModel
+    let files: FilesViewModel
 
     var body: some View {
         Section {
@@ -89,6 +90,7 @@ struct ActionsSection: View {
                     .disabled(model.destination == nil)
             }
             .labelStyle(.titleAndIcon)
+            if files.showsMainWindowRepairNotice { RepairQueueNotice(files: files) }
             if let advice = model.error(for: .general) { FieldErrorView(advice: advice) }
         }
     }

@@ -60,6 +60,10 @@ public protocol OfflineJobReading: Sendable {
     func deepVerify(at destination: URL, restart: Bool,
                     progress: @escaping @Sendable (DeepVerifyProgress) -> Void) async throws -> DeepVerifyResult
     func importManifest(at destination: URL, text: String) throws -> ManifestImportResult
+    /// Bytes already in the `.part` files of queued repairs.
+    func queuedRepairPartBytes(at destination: URL) throws -> Int64
+    /// Empties the repair queue; files keep their local copy and `.part`.
+    func clearRepairQueue(at destination: URL) throws
 }
 
 public struct OfflineJobReader: OfflineJobReading {
@@ -98,6 +102,14 @@ public struct OfflineJobReader: OfflineJobReading {
 
     public func importManifest(at destination: URL, text: String) throws -> ManifestImportResult {
         try DownloadEngine.importManifest(destination: destination, text: text)
+    }
+
+    public func queuedRepairPartBytes(at destination: URL) throws -> Int64 {
+        try DownloadEngine.queuedRepairPartBytes(destination: destination)
+    }
+
+    public func clearRepairQueue(at destination: URL) throws {
+        try DownloadEngine.clearRepairQueue(destination: destination)
     }
 }
 

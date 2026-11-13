@@ -8,7 +8,7 @@ struct SynoShareApp: App {
 
     var body: some Scene {
         Window("SynoShare", id: "main") {
-            ContentView(model: appDelegate.model)
+            ContentView(model: appDelegate.model, files: appDelegate.files)
                 .frame(minWidth: 620, idealWidth: 720, minHeight: 640, idealHeight: 820)
         }
         .windowResizability(.contentMinSize)

@@ -17,9 +17,12 @@ struct FilesTable: View {
             }
             .width(24)
             TableColumn("Status", value: \.healthRank) { row in
-                FileStatusLabel(row: row)
+                HStack(spacing: 8) {
+                    FileStatusLabel(row: row)
+                    if row.isRepairQueued { RepairQueuedMark() }
+                }
             }
-            .width(min: 120, ideal: 150)
+            .width(min: 120, ideal: 210)
             TableColumn("Path", value: \.relPath) { row in
                 Text(row.relPath)
                     .lineLimit(1)

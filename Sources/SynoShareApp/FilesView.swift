@@ -11,6 +11,11 @@ struct FilesView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if model.showsRepairQueueBanner {
+                RepairQueueBanner(model: model)
+                    .padding(12)
+                Divider()
+            }
             FilesFilterBar(model: model)
                 .padding(12)
             Divider()

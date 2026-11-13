@@ -12,8 +12,15 @@ public final class FilesViewModel {
     // MARK: Files and filter
 
     public private(set) var entries: [FileEntry] = [] {
-        didSet { sizes = Dictionary(entries.map { ($0.record.path, $0.record.size) }, uniquingKeysWith: { a, _ in a }) }
+        didSet {
+            sizes = Dictionary(entries.map { ($0.record.path, $0.record.size) }, uniquingKeysWith: { a, _ in a })
+            queuedRepairs = entries.filter(\.record.repairQueued)
+        }
     }
+    /// Files a stopped or failed repair left queued (see `FilesViewModel+RepairQueue`).
+    public private(set) var queuedRepairs: [FileEntry] = []
+    /// Bytes already in the `.part` files of queued repairs.
+    public private(set) var queuedPartBytes: Int64 = 0
     public private(set) var hasState = false
     public private(set) var isLoading = false
     public var segment: HealthSegment = .all {
@@ -68,6 +75,7 @@ public final class FilesViewModel {
         guard let destination, offline.hasState(at: destination) else {
             hasState = false
             entries = []
+            queuedPartBytes = 0
             updateRows()
             return
         }
@@ -75,7 +83,13 @@ public final class FilesViewModel {
         defer { isLoading = false }
         let offline = offline
         do {
-            entries = try await Task.detached { try offline.fileEntries(at: destination) }.value
+            let (loaded, partBytes) = try await Task.detached { () throws -> ([FileEntry], Int64) in
+                let loaded = try offline.fileEntries(at: destination)
+                let hasQueue = loaded.contains { $0.record.repairQueued }
+                return (loaded, hasQueue ? try offline.queuedRepairPartBytes(at: destination) : 0)
+            }.value
+            entries = loaded
+            queuedPartBytes = partBytes
             hasState = true
             let known = Set(entries.map(\.record.path))
             selection = selection.intersection(known)
