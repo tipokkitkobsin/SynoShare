@@ -323,6 +323,36 @@ final class FilesViewModelTests: XCTestCase {
         await repair.value
     }
 
+    func testRepairShowsSpeedAndTimeLeftAndCanBePausedResumedAndStopped() async {
+        // A 13.9 GB repair had no ETA or Pause in the Files window (2026-11-13).
+        await recorder.engine.configure(holdRepair: true)
+        let (download, files) = makeModels()
+        await files.load()
+        files.toggle(paths("a/gone.bin"))
+        let repair = Task { await files.repairSelected() }
+        let started = await eventually { await self.recorder.engine.calls.contains("repair") }
+        XCTAssertTrue(started)
+
+        download.handle(.phase(.downloading))
+        download.handle(.progress(ProgressSnapshot(totalBytes: 1_000, completedBytes: 250, bytesPerSecond: 50,
+                                                   active: [], concurrency: 1)))
+        XCTAssertTrue(files.repairSpeedText.hasSuffix("/s"))
+        XCTAssertEqual(files.repairTimeLeft, "15s")
+
+        await files.toggleRepairPause()
+        download.handle(.phase(.paused([.user])))
+        XCTAssertTrue(files.isRepairPaused)
+        XCTAssertEqual(files.repairTimeLeft, "—")
+        await files.toggleRepairPause()
+
+        await files.stopRepair()
+        await repair.value
+
+        let calls = await recorder.engine.calls
+        XCTAssertEqual(calls, ["repair", "pause", "resume", "stop", "repairSettled"])
+        XCTAssertFalse(files.isRepairing)
+    }
+
     func testRepairWithoutPasswordShowsErrorAndDoesNotRun() async {
         let (_, files) = makeModels(password: "")
         await files.load()

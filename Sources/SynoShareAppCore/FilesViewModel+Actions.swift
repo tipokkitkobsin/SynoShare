@@ -106,6 +106,24 @@ extension FilesViewModel {
         isRepairing = false
     }
 
+    // MARK: Repair controls (same engine as the main download)
+
+    public var repairSpeedText: String { download.speedText }
+    public var repairTimeLeft: String { download.timeLeft }
+    public var isRepairPaused: Bool { download.isUserPaused }
+
+    public func toggleRepairPause() async {
+        guard isRepairing else { return }
+        await download.togglePause()
+    }
+
+    /// Stops gracefully: unfinished files keep their old copy and their `.part`,
+    /// so the next repair of them resumes with Range.
+    public func stopRepair() async {
+        guard isRepairing else { return }
+        await download.stop()
+    }
+
     /// Reads a user-chosen text file (security-scoped when it came from a file importer).
     static func readText(_ url: URL) throws -> String {
         let scoped = url.startAccessingSecurityScopedResource()

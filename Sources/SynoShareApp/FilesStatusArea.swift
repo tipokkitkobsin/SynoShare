@@ -44,13 +44,26 @@ struct FilesStatusArea: View {
         return VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text("Repair: \(download.phaseDescription)")
-                ProgressView().controlSize(.small)
+                if download.showsActivity { ProgressView().controlSize(.small) }
                 Spacer()
-                if let progress = download.progress {
-                    Text("\(Formatting.bytes(progress.completedBytes)) of \(Formatting.bytes(progress.totalBytes))")
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
+                Button(model.isRepairPaused ? "Resume" : "Pause",
+                       systemImage: model.isRepairPaused ? "play.fill" : "pause.fill") {
+                    Task { await model.toggleRepairPause() }
                 }
+                Button("Stop", systemImage: "stop.fill") { Task { await model.stopRepair() } }
+                    .help("Stop the repair. Files not finished keep their old copy; repairing them again "
+                          + "continues where this stopped.")
+            }
+            if let progress = download.progress {
+                ProgressView(value: progress.fractionCompleted)
+                    .accessibilityLabel("Repair progress")
+                HStack(spacing: 16) {
+                    Text("\(Formatting.bytes(progress.completedBytes)) of \(Formatting.bytes(progress.totalBytes))")
+                    Text("Speed \(model.repairSpeedText)")
+                    Text("Time left \(model.repairTimeLeft)")
+                }
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
             }
             ForEach(download.progress?.active ?? [], id: \.path) { ActiveFileRow(file: $0) }
         }
