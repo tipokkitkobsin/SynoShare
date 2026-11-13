@@ -3,11 +3,13 @@ import Foundation
 
 /// Appends downloaded chunks to a `.part` file and reports byte deltas.
 /// Opened with `O_NOFOLLOW`, so it never writes through a symlink.
+/// Keeps a running SHA-256 of everything in the file, including a resumed prefix.
 final class PartWriter: @unchecked Sendable {
     let url: URL
     private let lock = NSLock()
     private var descriptor: Int32
     private var written: Int64
+    private var digest = StreamingDigest(.sha256)
     private let report: @Sendable (Int64) -> Void
 
     init(url: URL, offset: Int64, report: @escaping @Sendable (Int64) -> Void) throws {
@@ -15,6 +17,12 @@ final class PartWriter: @unchecked Sendable {
         self.report = report
         descriptor = try SafeFS.openForWriting(url, at: offset)
         written = offset
+        do {
+            digest = try Self.digestOfPrefix(url, length: offset)
+        } catch {
+            close()
+            throw error
+        }
     }
 
     deinit { close() }
@@ -25,6 +33,7 @@ final class PartWriter: @unchecked Sendable {
         try lock.withLock {
             try SafeFS.write(data, to: descriptor, path: url.path)
             written += Int64(data.count)
+            digest.update(data)
         }
         report(Int64(data.count))
     }
@@ -37,9 +46,21 @@ final class PartWriter: @unchecked Sendable {
             }
             let delta = offset - written
             written = offset
+            digest = try Self.digestOfPrefix(url, length: offset)
             return delta
         }
         report(delta)
+    }
+
+    /// Lowercase hex SHA-256 of the bytes written so far (resumed prefix included).
+    func sha256Hex() -> String { lock.withLock { digest.hex() } }
+
+    /// Hashes the first `length` bytes already on disk (a resumed `.part`).
+    private static func digestOfPrefix(_ url: URL, length: Int64) throws -> StreamingDigest {
+        var digest = StreamingDigest(.sha256)
+        guard length > 0 else { return digest }
+        try FileHasher.read(url, limit: length) { digest.update($0) }
+        return digest
     }
 
     /// Flushes to the physical drive and closes.

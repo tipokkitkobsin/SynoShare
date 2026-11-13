@@ -156,9 +156,9 @@ extension DownloadEngine {
     private func record(_ outcome: DownloadOutcome, for file: FileRecord) throws {
         let status: FileStatus
         switch outcome {
-        case .downloaded:
+        case .downloaded(let sha256):
             status = .done
-            try store.markComplete(file.path, status: .done, bytes: file.size)
+            try store.markComplete(file.path, status: .done, bytes: file.size, sha256: sha256)
         case .adopted:
             status = .adopted
             try store.markComplete(file.path, status: .adopted, bytes: file.size, note: Self.adoptedNote)

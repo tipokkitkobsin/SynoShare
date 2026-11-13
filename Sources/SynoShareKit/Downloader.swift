@@ -15,8 +15,8 @@ struct DownloadJob: Sendable {
 }
 
 enum DownloadOutcome: Sendable, Equatable {
-    /// Finished and renamed into place.
-    case downloaded
+    /// Finished and renamed into place; `sha256` covers every byte of the file.
+    case downloaded(sha256: String)
     /// An untracked local file of the right size was already there (DECISIONS #8: skip, tag).
     case adopted
     /// An untracked local file of a different size is in the way: never overwritten.
@@ -56,11 +56,12 @@ struct Downloader: Sendable {
         guard writer.position == job.size else {
             throw DownloadError.transient("Incomplete: \(writer.position) of \(job.size) bytes.")
         }
+        let sha256 = writer.sha256Hex()
         try writer.finish()
         if let modified = job.modified { try SafeFS.setModificationDate(modified, of: part) }
         try SafeFS.move(part, to: job.localURL, replacing: job.replaceExisting)
         SafeFS.syncDirectory(job.localURL.deletingLastPathComponent())
-        return .downloaded
+        return .downloaded(sha256: sha256)
     }
 
     private func transfer(_ job: DownloadJob, writer: PartWriter, from offset: Int64) async throws {

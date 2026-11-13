@@ -48,6 +48,12 @@ public struct FileRecord: Sendable, Equatable {
     public let note: String?
     /// The user chose Replace for a conflict: the next download may overwrite.
     public let replaceExisting: Bool
+    /// Lowercase hex SHA-256 of the local file, recorded on download or by Deep Verify.
+    public let sha256: String?
+    /// When the local file was last hashed and checked against every known reference.
+    public let hashedAt: Date?
+    /// Reference checksum from an imported manifest (wins over `sha256` when comparing).
+    public let expectedHash: ExpectedHash?
 
     init(row: SQLRow) {
         path = row.text("path") ?? ""
@@ -63,6 +69,14 @@ public struct FileRecord: Sendable, Equatable {
         verifiedAt = row.date("verified_at")
         note = row.text("note")
         replaceExisting = (row.int("replace_ok") ?? 0) != 0
+        sha256 = row.text("sha256")
+        hashedAt = row.date("hashed_at")
+        expectedHash = Self.expected(hex: row.text("expected_hash"), algorithm: row.text("expected_algo"))
+    }
+
+    private static func expected(hex: String?, algorithm: String?) -> ExpectedHash? {
+        guard let hex, let algorithm = algorithm.flatMap(HashAlgorithm.init(rawValue:)) else { return nil }
+        return ExpectedHash(algorithm: algorithm, hex: hex)
     }
 
     /// Server modification time as a date, if listed.

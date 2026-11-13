@@ -37,29 +37,60 @@ public final class StateStore: @unchecked Sendable {
         destination.appending(path: directoryName, directoryHint: .isDirectory)
     }
 
+    /// Current schema. v1: listing and progress. v2: checksums (`docs/REPAIR_PLAN.md`).
+    static let schemaVersion = 2
+
     private func migrate() throws {
         _ = try db.query("PRAGMA journal_mode=WAL")
-        try db.execute("""
-            PRAGMA synchronous=NORMAL;
-            CREATE TABLE IF NOT EXISTS job(
-                id INTEGER PRIMARY KEY CHECK (id = 1),
-                share_server_id TEXT NOT NULL, share_link_id TEXT NOT NULL,
-                dest TEXT NOT NULL, root TEXT, created_at REAL NOT NULL);
-            CREATE TABLE IF NOT EXISTS folder(
-                path TEXT PRIMARY KEY, parent TEXT, local_path TEXT NOT NULL,
-                listed INTEGER NOT NULL DEFAULT 0);
-            CREATE TABLE IF NOT EXISTS file(
-                path TEXT PRIMARY KEY, parent TEXT NOT NULL, rel_path TEXT NOT NULL,
-                local_path TEXT NOT NULL, size INTEGER NOT NULL, mtime INTEGER,
-                status TEXT NOT NULL, bytes_done INTEGER NOT NULL DEFAULT 0,
-                attempts INTEGER NOT NULL DEFAULT 0, last_error TEXT, verified_at REAL,
-                note TEXT, replace_ok INTEGER NOT NULL DEFAULT 0);
-            CREATE INDEX IF NOT EXISTS file_status ON file(status);
-            CREATE INDEX IF NOT EXISTS file_parent ON file(parent);
-            CREATE INDEX IF NOT EXISTS folder_parent ON folder(parent);
-            PRAGMA user_version = 1;
-            """)
+        let version = try schemaVersion()
+        guard version <= Self.schemaVersion else {
+            throw StateStoreError("This download state was written by a newer SynoShare (schema \(version)).")
+        }
+        try db.execute("PRAGMA synchronous=NORMAL;" + Self.schema)
+        if version == 1 { try migrateV1toV2() }
+        try db.execute("PRAGMA user_version = \(Self.schemaVersion)")
     }
+
+    /// v1 → v2 keeps every row; the new checksum columns start empty.
+    private func migrateV1toV2() throws {
+        let existing = Set(try fileColumns())
+        try db.transaction {
+            for (column, type) in Self.v2Columns where !existing.contains(column) {
+                try db.execute("ALTER TABLE file ADD COLUMN \(column) \(type)")
+            }
+        }
+    }
+
+    func schemaVersion() throws -> Int {
+        Int(try db.query("PRAGMA user_version").first?.int("user_version") ?? 0)
+    }
+
+    func fileColumns() throws -> [String] {
+        try db.query("PRAGMA table_info(file)").compactMap { $0.text("name") }
+    }
+
+    private static let v2Columns = [("sha256", "TEXT"), ("hashed_at", "REAL"),
+                                    ("expected_hash", "TEXT"), ("expected_algo", "TEXT")]
+
+    private static let schema = """
+        CREATE TABLE IF NOT EXISTS job(
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            share_server_id TEXT NOT NULL, share_link_id TEXT NOT NULL,
+            dest TEXT NOT NULL, root TEXT, created_at REAL NOT NULL);
+        CREATE TABLE IF NOT EXISTS folder(
+            path TEXT PRIMARY KEY, parent TEXT, local_path TEXT NOT NULL,
+            listed INTEGER NOT NULL DEFAULT 0);
+        CREATE TABLE IF NOT EXISTS file(
+            path TEXT PRIMARY KEY, parent TEXT NOT NULL, rel_path TEXT NOT NULL,
+            local_path TEXT NOT NULL, size INTEGER NOT NULL, mtime INTEGER,
+            status TEXT NOT NULL, bytes_done INTEGER NOT NULL DEFAULT 0,
+            attempts INTEGER NOT NULL DEFAULT 0, last_error TEXT, verified_at REAL,
+            note TEXT, replace_ok INTEGER NOT NULL DEFAULT 0,
+            sha256 TEXT, hashed_at REAL, expected_hash TEXT, expected_algo TEXT);
+        CREATE INDEX IF NOT EXISTS file_status ON file(status);
+        CREATE INDEX IF NOT EXISTS file_parent ON file(parent);
+        CREATE INDEX IF NOT EXISTS folder_parent ON folder(parent);
+        """
 
     // MARK: - Job
 

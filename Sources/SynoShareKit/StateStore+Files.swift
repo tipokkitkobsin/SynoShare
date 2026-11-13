@@ -48,11 +48,14 @@ extension StateStore {
     }
 
     /// A finished file: `done` after a download, `adopted` when an untracked local copy matched.
-    func markComplete(_ path: String, status: FileStatus, bytes: Int64, note: String? = nil) throws {
+    /// `sha256` is the digest computed while downloading; nil (adopted) clears any old one.
+    func markComplete(_ path: String, status: FileStatus, bytes: Int64, note: String? = nil,
+                      sha256: String? = nil, at date: Date = Date()) throws {
         try db.query("""
             UPDATE file SET status = ?, bytes_done = ?, last_error = NULL, replace_ok = 0,
-                note = COALESCE(?, note) WHERE path = ?
-            """, [.text(status.rawValue), .integer(bytes), SQLValue(note), .text(path)])
+                note = COALESCE(?, note), sha256 = ?, hashed_at = ? WHERE path = ?
+            """, [.text(status.rawValue), .integer(bytes), SQLValue(note), SQLValue(sha256),
+                  SQLValue(sha256 == nil ? nil : date), .text(path)])
     }
 
     func markConflict(_ path: String, note: String) throws {
