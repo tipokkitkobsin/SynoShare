@@ -82,8 +82,12 @@ struct Downloader: Sendable {
     private func transfer(_ job: DownloadJob, writer: PartWriter, from offset: Int64) async throws {
         let request = try await makeRequest(job.remotePath, offset > 0 ? "\(offset)-" : nil)
         let size = job.size
+        let remotePath = job.remotePath
         let result = try await StreamingFetch.run(request, session: session, decide: { response in
-            try Self.prepare(response, size: size, offset: offset, writer: writer)
+            if Self.isUnexpectedWebPage(response, remotePath: remotePath) {
+                throw DownloadError.transient("The server sent a web page instead of the file.")
+            }
+            return try Self.prepare(response, size: size, offset: offset, writer: writer)
         }, sink: { data in
             try writer.append(data)
             return true
@@ -113,6 +117,17 @@ struct Downloader: Sendable {
         default:
             return false
         }
+    }
+
+    /// The QuickConnect relay sometimes answers 200 with an HTML error page. Unless the file
+    /// itself is a web page, that body must never reach the `.part`.
+    static func isUnexpectedWebPage(_ response: HTTPURLResponse, remotePath: String) -> Bool {
+        // Error statuses (416, 503, …) are handled by `prepare` and `check`, whatever their body.
+        guard response.statusCode == 200 || response.statusCode == 206 else { return false }
+        let type = (response.value(forHTTPHeaderField: "Content-Type") ?? "").lowercased()
+        guard type.contains("text/html") else { return false }
+        let ext = (remotePath as NSString).pathExtension.lowercased()
+        return ext != "html" && ext != "htm"
     }
 
     /// Synology reports session errors as a small JSON body with HTTP 200.

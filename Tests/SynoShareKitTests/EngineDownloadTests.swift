@@ -109,6 +109,31 @@ final class EngineDownloadTests: EngineTestCase {
         XCTAssertEqual(contents("f.bin"), data)
     }
 
+    func testRelayErrorPageIsNeverWrittenIntoTheFile() async throws {
+        // Real files 2026-11-07: a 200 HTML page without Content-Length went into the .part,
+        // the retry resumed after it with Range, and the size matched but the header was HTML.
+        let data = Self.bytes(5000)
+        nas.addFile("/Share/f.las", data)
+        nas.script("/Share/f.las", [.relayErrorPage])
+        let engine = try makeEngine()
+
+        _ = try await engine.run()
+
+        XCTAssertEqual(contents("f.las"), data)
+    }
+
+    func testWebPageReplyIsExpectedOnlyForHTMLFiles() {
+        let page = HTTPURLResponse(url: URL(fileURLWithPath: "/"), statusCode: 200, httpVersion: nil,
+                                   headerFields: ["Content-Type": "text/html; charset=utf-8"])
+        let binary = HTTPURLResponse(url: URL(fileURLWithPath: "/"), statusCode: 200, httpVersion: nil,
+                                     headerFields: ["Content-Type": "application/octet-stream"])
+
+        XCTAssertTrue(Downloader.isUnexpectedWebPage(page!, remotePath: "/Share/x/f.las"))
+        XCTAssertFalse(Downloader.isUnexpectedWebPage(page!, remotePath: "/Share/report.HTML"))
+        XCTAssertFalse(Downloader.isUnexpectedWebPage(page!, remotePath: "/Share/index.htm"))
+        XCTAssertFalse(Downloader.isUnexpectedWebPage(binary!, remotePath: "/Share/x/f.las"))
+    }
+
     func testSessionExpiryLogsInAgainAndContinues() async throws {
         let data = Self.bytes(3000)
         nas.addFile("/Share/f.bin", data)

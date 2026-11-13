@@ -10,6 +10,8 @@ enum Behavior: Equatable {
     case sessionExpired
     /// The client's public IP changed since login (error 150); the old session is unusable.
     case ipChanged
+    /// The relay answers 200 with an HTML page, no Content-Length, then drops (seen 2026-11-07).
+    case relayErrorPage
     /// Send this many body bytes, then drop the connection.
     case dropAfter(Int)
 }
@@ -145,6 +147,10 @@ final class FakeNAS: @unchecked Sendable {
             sessionValid = false
             invalidSessionCode = 150
             return .apiError(150)
+        case .relayErrorPage?:
+            let page = Data("<!doctype html> <html> <head><title>Error</title></head></html>".utf8)
+            return StubReply(status: 200, headers: ["Content-Type": "text/html; charset=utf-8"],
+                             body: page, dropAfter: page.count)
         case .ignoreRange?: return Self.serve(file.data, range: nil, dropAfter: nil)
         case .dropAfter(let count)?: return Self.serve(file.data, range: range, dropAfter: count)
         case nil: return Self.serve(file.data, range: range, dropAfter: nil)
