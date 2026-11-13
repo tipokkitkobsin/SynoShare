@@ -2,6 +2,7 @@ import Foundation
 import SynoShareKit
 
 /// The network commands share one shape: parse link, ask password, run the engine.
+/// File health commands live in `FileCommands`.
 enum Commands {
     static func run(_ arguments: Arguments) async throws {
         switch arguments.command {
@@ -21,6 +22,14 @@ enum Commands {
             try verify(destination: try arguments.destination())
         case "resolve":
             try resolve(arguments)
+        case "files":
+            try FileCommands.files(arguments)
+        case "deep-verify":
+            try await FileCommands.deepVerify(arguments)
+        case "import-manifest":
+            try FileCommands.importManifest(arguments)
+        case "repair":
+            try await FileCommands.repair(arguments)
         default:
             throw ArgumentError(usage)
         }
@@ -33,16 +42,7 @@ enum Commands {
         configuration.maxConcurrency = try arguments.positiveInt("--concurrency", default: 3)
         configuration.preventSleep = !arguments.flags.contains("--allow-sleep")
         let mebibytes = try arguments.positiveInt("--mib", default: 32)
-        let password = try askPassword()
-        let engine = try DownloadEngine(configuration: configuration, passwordProvider: { password })
-        let printer = Task {
-            var printer = ProgressPrinter()
-            for await event in engine.events { printer.handle(event) }
-        }
-        let interrupts = InterruptHandler()
-        interrupts.install { Task { await engine.stop() } }
-
-        do {
+        try await withEngine(configuration) { engine in
             switch arguments.command {
             case "list": print(try await engine.list(refresh: true).text)
             case "download": print(try await engine.run().text)
@@ -52,13 +52,31 @@ enum Commands {
                 print(String(format: "speed test: %@ in %.1f s = %.2f MB/s",
                              formatBytes(result.bytes), result.seconds, result.megabytesPerSecond))
             }
+        }
+    }
+
+    /// Asks the password, runs `body` with progress printing and Ctrl-C as a graceful
+    /// stop, then shuts the engine down whether `body` succeeded or not.
+    static func withEngine<T>(_ configuration: EngineConfiguration,
+                              _ body: (DownloadEngine) async throws -> T) async throws -> T {
+        let password = try askPassword()
+        let engine = try DownloadEngine(configuration: configuration, passwordProvider: { password })
+        let printer = Task {
+            var printer = ProgressPrinter()
+            for await event in engine.events { printer.handle(event) }
+        }
+        let interrupts = InterruptHandler()
+        interrupts.install { Task { await engine.stop() } }
+        do {
+            let result = try await body(engine)
+            await engine.shutdown()
+            await printer.value
+            return result
         } catch {
             await engine.shutdown()
             await printer.value
             throw error
         }
-        await engine.shutdown()
-        await printer.value
     }
 
     private static func verify(destination: URL) throws {

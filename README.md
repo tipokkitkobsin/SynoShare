@@ -58,7 +58,16 @@ synoshare speedtest    <share-url> --dest <folder> [--mib N]
 synoshare status       --dest <folder>
 synoshare verify       --dest <folder>
 synoshare resolve      --dest <folder> <remote-path> replace|keep-both
+synoshare files        --dest <folder> [--health <list>] [--broken] [--match <glob>] [--paths-from <file>]
+synoshare deep-verify  --dest <folder> [--restart]
+synoshare import-manifest --dest <folder> <manifest-file>
+synoshare repair       <share-url> --dest <folder> [--broken] [--match <glob>] [--paths-from <file>]
 ```
+
+`files` previews a selection; `repair` downloads again only the selected files (it needs
+`--broken`, `--match` or `--paths-from`; `--paths-from` takes one relative path per
+line, `-` for standard input, and adds to the other two). `deep-verify` hashes completed
+files (SHA-256) and resumes after Ctrl-C.
 
 Ctrl-C stops gracefully; run the same command again to resume. Do not run the app and
 the CLI on the same destination at the same time.

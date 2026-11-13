@@ -17,5 +17,7 @@ let package = Package(
         .executableTarget(name: "SynoShareApp", dependencies: ["SynoShareAppCore", "SynoShareKit"]),
         .testTarget(name: "SynoShareKitTests", dependencies: ["SynoShareKit"]),
         .testTarget(name: "SynoShareAppTests", dependencies: ["SynoShareAppCore", "SynoShareKit"]),
+        // Argument parsing and output formatting of the CLI (the executable module is testable).
+        .testTarget(name: "SynoShareCLITests", dependencies: ["synoshare", "SynoShareKit"]),
     ]
 )
