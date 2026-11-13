@@ -3,7 +3,7 @@ import XCTest
 
 /// Selecting files from a pasted list of paths (one per line).
 final class PathListTests: XCTestCase {
-    private func entry(_ relPath: String, size: Int64 = 10, root: String = "/M81_AU20") -> FileEntry {
+    private func entry(_ relPath: String, size: Int64 = 10, root: String = "/ShareRoot") -> FileEntry {
         FileEntry(record: FileRecord(row: SQLRow(columns: [
             "path": .text("\(root)/\(relPath)"), "parent": .text(root), "rel_path": .text(relPath),
             "local_path": .text(relPath), "size": .integer(size), "status": .text("done"),
@@ -14,13 +14,13 @@ final class PathListTests: XCTestCase {
         let lines = PathList.parse("""
               # files to fetch again
 
-            M81_AU20/81-032621101/Lasfile/81-032621101.las   (7,925,947,865 bytes)
+            ShareRoot/81-000101/Lasfile/81-000101.las   (1,234,567,890 bytes)
             ./b/c.txt
             d e.bin (12 byte)\t
             """)
 
-        XCTAssertEqual(lines.map(\.path), ["M81_AU20/81-032621101/Lasfile/81-032621101.las", "b/c.txt", "d e.bin"])
-        XCTAssertEqual(lines.map(\.listedSize), [7_925_947_865, nil, 12])
+        XCTAssertEqual(lines.map(\.path), ["ShareRoot/81-000101/Lasfile/81-000101.las", "b/c.txt", "d e.bin"])
+        XCTAssertEqual(lines.map(\.listedSize), [1_234_567_890, nil, 12])
         XCTAssertEqual(lines.map(\.lineNumber), [3, 4, 5])
     }
 
@@ -34,14 +34,14 @@ final class PathListTests: XCTestCase {
         let selection = PathList.select("a/X.LAS", from: entries)
 
         XCTAssertEqual(selection.matched, [entries[0]])
-        XCTAssertEqual(selection.paths, ["/M81_AU20/A/x.las"])
+        XCTAssertEqual(selection.paths, ["/ShareRoot/A/x.las"])
         XCTAssertTrue(selection.unmatched.isEmpty)
     }
 
     func testShareRootNamePrefixIsStripped() {
         let entries = [entry("81-1/Lasfile/81-1.las")]
 
-        let selection = PathList.select("M81_AU20/81-1/Lasfile/81-1.las   (10 bytes)", from: entries)
+        let selection = PathList.select("ShareRoot/81-1/Lasfile/81-1.las   (10 bytes)", from: entries)
 
         XCTAssertEqual(selection.matched, entries)
     }
@@ -55,9 +55,9 @@ final class PathListTests: XCTestCase {
     }
 
     func testPrefixIsKeptWhenItIsARealTopLevelFolder() {
-        let entries = [entry("M81_AU20/a.bin"), entry("a.bin")]
+        let entries = [entry("ShareRoot/a.bin"), entry("a.bin")]
 
-        let selection = PathList.select("M81_AU20/a.bin", from: entries)
+        let selection = PathList.select("ShareRoot/a.bin", from: entries)
 
         XCTAssertEqual(selection.matched, [entries[0]])
     }

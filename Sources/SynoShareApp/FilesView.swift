@@ -116,7 +116,7 @@ struct FilesFilterBar: View {
                 .labelsHidden()
                 .accessibilityLabel("Status filter")
                 .fixedSize()
-                TextField("Pattern", text: $model.globText, prompt: Text("Folder or pattern, e.g. M81/**/*.las"))
+                TextField("Pattern", text: $model.globText, prompt: Text("Folder or pattern, e.g. Survey/**/*.las"))
                     .textFieldStyle(.roundedBorder)
                     .focused($isPatternFocused)
                     .accessibilityLabel("Path pattern")

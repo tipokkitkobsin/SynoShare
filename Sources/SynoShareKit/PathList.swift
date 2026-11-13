@@ -8,7 +8,7 @@ public struct PathListLine: Sendable, Equatable {
     public let text: String
     /// The path with `./` and the size annotation removed.
     public let path: String
-    /// Size from a trailing `(7,925,947,865 bytes)` annotation, if any.
+    /// Size from a trailing `(1,234,567,890 bytes)` annotation, if any.
     public let listedSize: Int64?
 }
 
